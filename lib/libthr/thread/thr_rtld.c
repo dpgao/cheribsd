@@ -278,3 +278,9 @@ _thr_rtld_init(void)
 	getcontext(uc);
 	__fillcontextx2((char *)uc);
 }
+
+void *
+get_trusted_stks(void)
+{
+	return &_get_curthread()->trusted_stks;
+}
