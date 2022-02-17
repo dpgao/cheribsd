@@ -1161,7 +1161,7 @@ _rtld_bind(Obj_Entry *obj, Elf_Size reloff)
      * that the trampoline needs.
      */
 #ifdef __CHERI_PURE_CAPABILITY__
-    if (trampoline_pages_append(&target, target))
+    if (tramp_pgs_append(&target, target))
 	rtld_die();
 #endif
     target = reloc_jmpslot(where, target, defobj, obj, rel);
