@@ -201,7 +201,9 @@ extern void *__tls_get_addr(tls_index *ti);
 #define md_abi_variant_hook(x)
 
 #ifdef __CHERI_PURE_CAPABILITY__
-int trampoline_pages_append(uintptr_t *out, uintptr_t data);
+int tramp_pgs_append(uintptr_t *out, uintptr_t data);
+
+struct tramp_stks *tramp_stks_get(void);
 
 static inline void
 fix_obj_mapping_cap_permissions(Obj_Entry *obj, const char *path __unused)
