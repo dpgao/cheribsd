@@ -383,6 +383,12 @@ struct pthread_key {
  */
 #define TID(thread)	((uint32_t) ((thread)->tid))
 
+#ifdef __CHERI_PURE_CAPABILITY__
+struct tramp_stk;
+
+SLIST_HEAD(tramp_stks, tramp_stk);
+#endif
+
 /*
  * Thread structure.
  */
@@ -597,6 +603,10 @@ struct pthread {
 	/* rtld thread-local dlerror message and seen control */
 	char			dlerror_msg[512];
 	int			dlerror_seen;
+
+#ifdef __CHERI_PURE_CAPABILITY__
+	struct tramp_stks	trusted_stks;
+#endif
 };
 
 #define THR_SHOULD_GC(thrd) 						\
