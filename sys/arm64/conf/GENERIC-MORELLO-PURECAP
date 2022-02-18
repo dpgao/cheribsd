@@ -32,3 +32,11 @@ nooptions 	PERTHREAD_SSP		# Not relevant in purecap
 nooptions	GDB	# Hangs on boot
 
 nodevice	armv8crypto	# No purecap assembly
+
+# DRM Support
+options		COMPAT_DRMKPI
+device		drm
+device		komeda_drm
+device		panfrost
+device		tda19988
+device		cdns_i2c
