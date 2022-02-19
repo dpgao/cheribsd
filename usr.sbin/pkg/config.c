@@ -500,7 +500,11 @@ config_init(const char *requested_repo)
 		c[REPOS_DIR].list = malloc(sizeof(*c[REPOS_DIR].list));
 		STAILQ_INIT(c[REPOS_DIR].list);
 		cv = malloc(sizeof(struct config_value));
+#ifdef COMPAT_64BIT
+		cv->value = strdup("/etc/pkg64");
+#else
 		cv->value = strdup("/etc/pkg");
+#endif
 		STAILQ_INSERT_TAIL(c[REPOS_DIR].list, cv, next);
 		cv = malloc(sizeof(struct config_value));
 		if (asprintf(&cv->value, "%s/etc/pkg/repos", localbase) < 0)
