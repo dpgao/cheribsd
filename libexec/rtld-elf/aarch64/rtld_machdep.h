@@ -150,10 +150,10 @@ make_data_cap(const Elf_Sym *def, const struct Struct_Obj_Entry *defobj)
 
 /* TODO: Per-function captable/PLT/FNDESC support */
 #define call_init_array_pointer(obj, target)				\
-	(((InitArrFunc)(target).value)(main_argc, main_argv, environ))
+	(((InitArrFunc)tramp_pgs_append((uintptr_t)(target).value))(main_argc, main_argv, environ))
 
 #define call_fini_array_pointer(obj, target)				\
-	(((InitFunc)(target).value)())
+	(((InitFunc)tramp_pgs_append((uintptr_t)(target).value))())
 
 #else /* __CHERI_PURE_CAPABILITY__ */
 
@@ -201,9 +201,9 @@ extern void *__tls_get_addr(tls_index *ti);
 #define md_abi_variant_hook(x)
 
 #ifdef __CHERI_PURE_CAPABILITY__
-int tramp_pgs_append(uintptr_t *out, uintptr_t data);
+void *_rtld_get_rstk(void);
 
-struct tramp_stks *tramp_stks_get(void);
+uintptr_t tramp_pgs_append(uintptr_t data);
 
 static inline void
 fix_obj_mapping_cap_permissions(Obj_Entry *obj, const char *path __unused)

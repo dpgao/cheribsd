@@ -68,13 +68,16 @@ ENTRY(.rtld_start)
 	add	c2, csp, #16
 	scbnds	c2, c2, #16			/* obj_main */
 	bl	_rtld				/* Call the loader */
-	mov	c8, c0				/* Backup the entry point*/
+	mov	c21, c0				/* Backup the entry point*/
+
+	bl	_rtld_get_rstk
+	msr	RCSP_EL0, c0
 
 	ldr	c1, [csp, #0]			/* Load cleanup */
 	ldr	c2, [csp, #16]			/* Load obj_main */
 	mov	c0, c19				/* Restore aux */
 	mov	csp, c20			/* Restore the stack pointer */
-	br	c8				/* Jump to the entry point */
+	brr	c21				/* Jump to the entry point */
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	mov	x19, x0		/* Put ps_strings in a callee-saved register */
 	mov	x20, sp		/* And the stack pointer */
@@ -101,6 +104,11 @@ END(.rtld_start)
  * x17 = &_rtld_bind_start
  */
 ENTRY(_rtld_bind_start)
+	mrs	c9, RCSP_EL0
+	ldp	c10, c11, [c9], #32
+	stp	c10, c11, [csp, #-32]!
+	msr	RCSP_EL0, c9
+
 	mov	PTR(17), PTRN(sp)
 
 	/* Save frame pointer and SP */
@@ -427,47 +435,32 @@ END(_rtld_tlsdesc_dynamic)
 .p2align	4
 data_cap:
 	.chericap	0
-push_cap:
-	.chericap	0
-pop_cap:
+get_rstk_cap:
 	.chericap	0
 
-	// Push c30
-	stp	c0, c1, [csp, #-32]!
-	stp	c2, c3, [csp, #-32]!
-	stp	c4, c5, [csp, #-32]!
-	stp	c6, c7, [csp, #-32]!
+	str	c30, [csp, #-16]!
+	mrs	c30, RCSP_EL0
+	cbnz	x30, 1f
+
+	str	c0, [csp, #-16]!
+	stp	c1, c2, [csp, #-32]!
+	stp	c3, c4, [csp, #-32]!
+	stp	c5, c6, [csp, #-32]!
+	stp	c7, c8, [csp, #-32]!
 
 	mov	c0, c30
-	ldr	c9, push_cap
+	ldr	c9, get_rstk_cap
 	blr	c9
+	msr	RCSP_EL0, c0
 
-	ldp	c6, c7, [csp], #32
-	ldp	c4, c5, [csp], #32
-	ldp	c2, c3, [csp], #32
-	ldp	c0, c1, [csp], #32
+	ldp	c7, c8, [csp], #32
+	ldp	c5, c6, [csp], #32
+	ldp	c3, c4, [csp], #32
+	ldp	c1, c2, [csp], #32
+	ldr	c0, [csp], #16
 
-	// Jump to target function
-	ldr	c9, data_cap
-	// br	c9
-	blr	c9
-
-	// Pop c30
-	stp	c0, c1, [csp, #-32]!
-	stp	c2, c3, [csp, #-32]!
-	stp	c4, c5, [csp, #-32]!
-	stp	c6, c7, [csp, #-32]!
-	sub	csp, csp, #16
-
-	scbnds	c0, csp, #16
-	ldr	c9, pop_cap
-	blr	c9
-
+1:	ldr	c9, data_cap
+	blrr	c9
 	ldr	c30, [csp], #16
-	ldp	c6, c7, [csp], #32
-	ldp	c4, c5, [csp], #32
-	ldp	c2, c3, [csp], #32
-	ldp	c0, c1, [csp], #32
-
-	ret
+	retr	c30
 #endif
