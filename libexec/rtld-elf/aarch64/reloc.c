@@ -167,15 +167,38 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 	}
 }
 
-#pragma weak tramp_stks_get
-struct tramp_stks *
-tramp_stks_get(void)
+static struct tramp_stks *
+def_tramp_stks_get(void)
 {
-	static struct tramp_stks stks = SLIST_HEAD_INITIALIZER(&stks);
-	return &stks;
+	static struct tramp_stks def_stks = SLIST_HEAD_INITIALIZER(&def_stks);
+	return &def_stks;
 }
 
-static int
+static struct tramp_stks_funcs tramp_stks_fs = {
+	.getter = def_tramp_stks_get
+};
+
+void
+_rtld_tramp_stks_funcs_init(struct tramp_stks_funcs *fs)
+{
+	fs->getter = make_rtld_function_pointer(fs->getter);
+	*fs->getter() = *tramp_stks_fs.getter();
+	tramp_stks_fs = *fs;
+}
+
+void *
+_rtld_get_rstk()
+{
+	size_t size = 0x40000 * getpagesize();
+	char *stk = mmap(NULL,
+			 size,
+			 PROT_READ | PROT_WRITE,
+			 MAP_ANON | MAP_PRIVATE | MAP_STACK,
+			 -1, 0);
+	return stk + size;
+}
+
+__unused static int
 tramp_stk_create(struct tramp_stk **out)
 {
 	struct tramp_stk *s = mmap(NULL,
@@ -184,25 +207,28 @@ tramp_stk_create(struct tramp_stk **out)
 				   MAP_ANON | MAP_PRIVATE,
 				   -1, 0);
 	if (s == MAP_FAILED)
-		return -1;
+		rtld_die();
 	s->cursor = s->buf;
-	*out = cheri_setboundsexact(s, offsetof(typeof(*s), buf));
+	*out = s;
 	return 0;
 }
 
-static int
+__unused static int
 tramp_stk_push(void *data)
 {
-	struct tramp_stks *stks = tramp_stks_get();
+	if (0x40ac7a5d == (uintptr_t)data)
+		return 0;
+
+	struct tramp_stks *stks = tramp_stks_fs.getter();
 	int n_retry = 0;
 	struct tramp_stk *s = SLIST_FIRST(stks);
 	goto start;
 
 retry:
 	if (n_retry++)
-		return -1;
+		rtld_die();
 	if (tramp_stk_create(&s))
-		return -1;
+		rtld_die();
 	SLIST_INSERT_HEAD(stks, s, entries);
 
 start:
@@ -218,18 +244,19 @@ start:
 	return 0;
 }
 
-static int
+__unused static int
 tramp_stk_pop(void **out)
 {
-	struct tramp_stks *stks = tramp_stks_get();
+	struct tramp_stks *stks = tramp_stks_fs.getter();
 	struct tramp_stk *s = SLIST_FIRST(stks);
-	*out = *(--s->cursor);
 	if (s->cursor == s->buf) {
-		if (munmap(s, getpagesize())) {
-			return -1;
-		}
 		SLIST_REMOVE_HEAD(stks, entries);
+		if (munmap(s, getpagesize())) {
+			rtld_die();
+		}
+		s = SLIST_FIRST(stks);
 	}
+	*out = *(--s->cursor);
 	return 0;
 }
 
@@ -255,14 +282,14 @@ tramp_pg_create(struct tramp_pg **out)
 				  MAP_ANON | MAP_PRIVATE,
 				  -1, 0);
 	if (p == MAP_FAILED)
-		return -1;
+		rtld_die();
 	p->cursor = p->trampolines;
 	*out = cheri_setboundsexact(p, offsetof(typeof(*p), trampolines));
 	return 0;
 }
 
-int
-tramp_pgs_append(uintptr_t *out, uintptr_t data)
+uintptr_t
+tramp_pgs_append(uintptr_t data)
 {
 	static struct tramp_pgs pgs = SLIST_HEAD_INITIALIZER(pgs);
 
@@ -275,9 +302,9 @@ tramp_pgs_append(uintptr_t *out, uintptr_t data)
 
 retry:
 	if (n_retry++)
-		return -1;
+		rtld_die();
 	if (tramp_pg_create(&pg))
-		return -1;
+		rtld_die();
 	SLIST_INSERT_HEAD(&pgs, pg, entries);
 
 start:
@@ -293,12 +320,9 @@ start:
 
 	memcpy(t, template, len);
 	t->data = data;
-	t->push = tramp_stk_push;
-	t->pop = tramp_stk_pop;
+	t->get_rstk_cap = _rtld_get_rstk;
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
-	*out = cheri_sealentry((uintptr_t)t->code);
-
-	return 0;
+	return cheri_sealentry((uintptr_t)t->code);
 }
 #endif /* __CHERI_PURE_CAPABILITY__ */
 
@@ -563,8 +587,7 @@ reloc_jmpslots(Obj_Entry *obj, int flags, RtldLockState *lockstate)
 			}
 			target = (uintptr_t)make_function_pointer(def, defobj);
 #ifdef __CHERI_PURE_CAPABILITY__
-			if (tramp_pgs_append(&target, target))
-				return (-1);
+			target = tramp_pgs_append(target);
 #endif
 			reloc_jmpslot(where, target, defobj, obj,
 			    (const Elf_Rel *)rela);
@@ -620,6 +643,7 @@ reloc_iresolve_one(Obj_Entry *obj, const Elf_Rela *rela,
 	ptr = (uintptr_t)(obj->relocbase + rela->r_addend);
 #endif
 	lock_release(rtld_bind_lock, lockstate);
+	ptr = tramp_pgs_append(ptr);
 	target = call_ifunc_resolver(ptr);
 	wlock_acquire(rtld_bind_lock, lockstate);
 	*where = target;
@@ -967,7 +991,7 @@ allocate_initial_tls(Obj_Entry *objs)
 	tls_static_space = tls_last_offset + tls_last_size +
 	    RTLD_STATIC_TLS_EXTRA;
 
-	_tcb_set(allocate_tls(objs, NULL, TLS_TCB_SIZE, TLS_TCB_ALIGN));
+	asm ("msr	rctpidr_el0, %0\n" :: "C" (allocate_tls(objs, NULL, TLS_TCB_SIZE, TLS_TCB_ALIGN)));
 }
 
 void *
@@ -975,6 +999,7 @@ __tls_get_addr(tls_index* ti)
 {
 	uintptr_t **dtvp;
 
-	dtvp = &_tcb_get()->tcb_dtv;
+	asm ("mrs	%0, RCTPIDR_EL0" : "=C" (dtvp));
+	// dtvp = &_tcb_get()->tcb_dtv;
 	return (tls_get_addr_common(dtvp, ti->ti_module, ti->ti_offset));
 }

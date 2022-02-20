@@ -848,13 +848,13 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
     } else {				/* Main program already loaded. */
 	dbg("processing main program's program header");
 	assert(aux_info[AT_PHDR] != NULL);
-	phdr = (const Elf_Phdr *) aux_info[AT_PHDR]->a_un.a_ptr;
+	phdr = (const Elf_Phdr *) cheri_clearperm(aux_info[AT_PHDR]->a_un.a_ptr, CHERI_PERM_EXECUTIVE);
 	assert(aux_info[AT_PHNUM] != NULL);
 	phnum = aux_info[AT_PHNUM]->a_un.a_val;
 	assert(aux_info[AT_PHENT] != NULL);
 	assert(aux_info[AT_PHENT]->a_un.a_val == sizeof(Elf_Phdr));
 	assert(aux_info[AT_ENTRY] != NULL);
-	imgentry = (dlfunc_t) aux_info[AT_ENTRY]->a_un.a_ptr;
+	imgentry = (dlfunc_t) cheri_clearperm(aux_info[AT_ENTRY]->a_un.a_ptr, CHERI_PERM_EXECUTIVE);
 	dbg("Values from kernel:\n\tAT_PHDR=" PTR_FMT "\n"
 	    "\tAT_BASE=" PTR_FMT "\n\tAT_ENTRY=" PTR_FMT "\n",
 		phdr, aux_info[AT_BASE]->a_un.a_ptr, (const void *)imgentry);
@@ -1101,7 +1101,7 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
     *exit_proc = rtld_exit_ptr;
     *objp = obj_main;
 
-    return ((func_ptr_type)obj_main->entry);
+    return cheri_sealentry((func_ptr_type)obj_main->entry);
 }
 
 void *
@@ -1161,8 +1161,7 @@ _rtld_bind(Obj_Entry *obj, Elf_Size reloff)
      * that the trampoline needs.
      */
 #ifdef __CHERI_PURE_CAPABILITY__
-    if (tramp_pgs_append(&target, target))
-	rtld_die();
+    target = tramp_pgs_append(target);
 #endif
     target = reloc_jmpslot(where, target, defobj, obj, rel);
     lock_release(rtld_bind_lock, &lockstate);
@@ -3329,6 +3328,7 @@ objlist_call_init(Objlist *list, RtldLockState *lockstate)
 	if (reg != NULL) {
 		func_ptr_type exit_ptr = make_rtld_function_pointer(rtld_exit);
 		dbg("Calling __libc_atexit(rtld_exit (" PTR_FMT "))", (void*)exit_ptr);
+		reg = make_rtld_function_pointer(reg);
 		reg(exit_ptr);
 		rtld_exit_ptr = make_rtld_function_pointer(rtld_nop_exit);
 	}
@@ -4470,7 +4470,8 @@ rtld_fill_dl_phdr_info(const Obj_Entry *obj, struct dl_phdr_info *phdr_info)
 	phdr_info->dlpi_name = obj->path;
 	phdr_info->dlpi_phnum = obj->phsize / sizeof(obj->phdr[0]);
 	phdr_info->dlpi_tls_modid = obj->tlsindex;
-	dtvp = &_tcb_get()->tcb_dtv;
+	asm ("mrs	%0, RCTPIDR_EL0" : "=C" (dtvp));
+	// dtvp = &_tcb_get()->tcb_dtv;
 	phdr_info->dlpi_tls_data = (char *)tls_get_addr_slow(dtvp,
 	    obj->tlsindex, 0, true) + TLS_DTV_OFFSET;
 	phdr_info->dlpi_adds = obj_loads;
