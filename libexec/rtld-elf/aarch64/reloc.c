@@ -167,12 +167,20 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 	}
 }
 
-#pragma weak tramp_stks_get
-struct tramp_stks *
-tramp_stks_get(void)
+static struct tramp_stks *
+def_tramp_stks_get(void)
 {
-	static struct tramp_stks stks = SLIST_HEAD_INITIALIZER(&stks);
-	return &stks;
+	static struct tramp_stks def_stks = SLIST_HEAD_INITIALIZER(&def_stks);
+	return &def_stks;
+}
+
+static struct tramp_stks *(*tramp_stks_get)(void) = def_tramp_stks_get;
+
+void
+_rtld_tramp_stks_getter_init(struct tramp_stks *(*getter)(void))
+{
+	*getter() = *tramp_stks_get();
+	tramp_stks_get = getter;
 }
 
 static int

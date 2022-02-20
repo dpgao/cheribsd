@@ -67,6 +67,7 @@
 #include <ucontext.h>
 #include <sys/thr.h>
 #include <pthread.h>
+#include <rtld.h>
 #ifdef __CHERI_PURE_CAPABILITY__
 #include <cheri/cheric.h>
 #endif
@@ -382,12 +383,6 @@ struct pthread_key {
  * to preserve the ABI for M:N model in very early date (r131431).
  */
 #define TID(thread)	((uint32_t) ((thread)->tid))
-
-#ifdef __CHERI_PURE_CAPABILITY__
-struct tramp_stk;
-
-SLIST_HEAD(tramp_stks, tramp_stk);
-#endif
 
 /*
  * Thread structure.

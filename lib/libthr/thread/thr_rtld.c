@@ -207,6 +207,12 @@ _thr_dlerror_seen(void)
 	return (&curthread->dlerror_seen);
 }
 
+static struct tramp_stks *
+_thr_rtld_get_trusted_stks(void)
+{
+	return &_get_curthread()->trusted_stks;
+}
+
 void
 _thr_rtld_init(void)
 {
@@ -269,6 +275,7 @@ _thr_rtld_init(void)
 	/* mask signals, also force to resolve __sys_sigprocmask PLT */
 	_thr_signal_block(curthread);
 	_rtld_thread_init(&li);
+	_rtld_tramp_stks_getter_init(_thr_rtld_get_trusted_stks);
 	_thr_signal_unblock(curthread);
 	_thr_signal_block_check_fast();
 	_thr_signal_block_setup(curthread);
@@ -277,10 +284,4 @@ _thr_rtld_init(void)
 	uc = alloca(uc_len);
 	getcontext(uc);
 	__fillcontextx2((char *)uc);
-}
-
-void *
-get_trusted_stks(void)
-{
-	return &_get_curthread()->trusted_stks;
 }

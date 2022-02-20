@@ -351,8 +351,7 @@ pop_cap:
 
 	// Jump to target function
 	ldr	c9, data_cap
-	// br	c9
-	blr	c9
+	blrr	c9
 
 	// Pop c30
 	stp	c0, c1, [csp, #-32]!
@@ -371,5 +370,5 @@ pop_cap:
 	ldp	c2, c3, [csp], #32
 	ldp	c0, c1, [csp], #32
 
-	ret
+	retr	c30
 #endif
