@@ -184,6 +184,10 @@ struct tramp_pg {
 
 SLIST_HEAD(tramp_pgs, tramp_pg);
 
+struct tramp_stks_funcs {
+    struct tramp_stks *(*getter)(void);
+};
+
 struct tramp_stk {
     void **cursor;
     SLIST_ENTRY(tramp_stk) entries;

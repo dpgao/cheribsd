@@ -217,6 +217,7 @@ void
 _thr_rtld_init(void)
 {
 	struct RtldLockInfo	li;
+	struct tramp_stks_funcs fs;
 	struct pthread		*curthread;
 	ucontext_t *uc;
 	long dummy = -1;
@@ -254,6 +255,8 @@ _thr_rtld_init(void)
 	li.dlerror_loc_sz = sizeof(curthread->dlerror_msg);
 	li.dlerror_seen = _thr_dlerror_seen;
 
+	fs.getter = _thr_rtld_get_trusted_stks;
+
 	/*
 	 * Preresolve the symbols needed for the fork interposer.  We
 	 * call _rtld_atfork_pre() and _rtld_atfork_post() with NULL
@@ -275,7 +278,7 @@ _thr_rtld_init(void)
 	/* mask signals, also force to resolve __sys_sigprocmask PLT */
 	_thr_signal_block(curthread);
 	_rtld_thread_init(&li);
-	_rtld_tramp_stks_getter_init(_thr_rtld_get_trusted_stks);
+	_rtld_tramp_stks_funcs_init(&fs);
 	_thr_signal_unblock(curthread);
 	_thr_signal_block_check_fast();
 	_thr_signal_block_setup(curthread);

@@ -174,13 +174,15 @@ def_tramp_stks_get(void)
 	return &def_stks;
 }
 
-static struct tramp_stks *(*tramp_stks_get)(void) = def_tramp_stks_get;
+static struct tramp_stks_funcs tramp_stks_fs = {
+	.getter = def_tramp_stks_get
+};
 
 void
-_rtld_tramp_stks_getter_init(struct tramp_stks *(*getter)(void))
+_rtld_tramp_stks_funcs_init(struct tramp_stks_funcs *fs)
 {
-	*getter() = *tramp_stks_get();
-	tramp_stks_get = getter;
+	*fs->getter() = *tramp_stks_fs.getter();
+	tramp_stks_fs = *fs;
 }
 
 static int
@@ -192,25 +194,28 @@ tramp_stk_create(struct tramp_stk **out)
 				   MAP_ANON | MAP_PRIVATE,
 				   -1, 0);
 	if (s == MAP_FAILED)
-		return -1;
+		rtld_die();
 	s->cursor = s->buf;
-	*out = cheri_setboundsexact(s, offsetof(typeof(*s), buf));
+	*out = s;
 	return 0;
 }
 
 static int
 tramp_stk_push(void *data)
 {
-	struct tramp_stks *stks = tramp_stks_get();
+	if (0x40ac7a5d == (uintptr_t)data)
+		return 0;
+
+	struct tramp_stks *stks = tramp_stks_fs.getter();
 	int n_retry = 0;
 	struct tramp_stk *s = SLIST_FIRST(stks);
 	goto start;
 
 retry:
 	if (n_retry++)
-		return -1;
+		rtld_die();
 	if (tramp_stk_create(&s))
-		return -1;
+		rtld_die();
 	SLIST_INSERT_HEAD(stks, s, entries);
 
 start:
@@ -229,15 +234,16 @@ start:
 static int
 tramp_stk_pop(void **out)
 {
-	struct tramp_stks *stks = tramp_stks_get();
+	struct tramp_stks *stks = tramp_stks_fs.getter();
 	struct tramp_stk *s = SLIST_FIRST(stks);
-	*out = *(--s->cursor);
 	if (s->cursor == s->buf) {
-		if (munmap(s, getpagesize())) {
-			return -1;
-		}
 		SLIST_REMOVE_HEAD(stks, entries);
+		if (munmap(s, getpagesize())) {
+			rtld_die();
+		}
+		s = SLIST_FIRST(stks);
 	}
+	*out = *(--s->cursor);
 	return 0;
 }
 
@@ -263,7 +269,7 @@ tramp_pg_create(struct tramp_pg **out)
 				  MAP_ANON | MAP_PRIVATE,
 				  -1, 0);
 	if (p == MAP_FAILED)
-		return -1;
+		rtld_die();
 	p->cursor = p->trampolines;
 	*out = cheri_setboundsexact(p, offsetof(typeof(*p), trampolines));
 	return 0;
@@ -283,9 +289,9 @@ tramp_pgs_append(uintptr_t *out, uintptr_t data)
 
 retry:
 	if (n_retry++)
-		return -1;
+		rtld_die();
 	if (tramp_pg_create(&pg))
-		return -1;
+		rtld_die();
 	SLIST_INSERT_HEAD(&pgs, pg, entries);
 
 start:

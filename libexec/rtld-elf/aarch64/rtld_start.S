@@ -339,11 +339,13 @@ pop_cap:
 	stp	c2, c3, [csp, #-32]!
 	stp	c4, c5, [csp, #-32]!
 	stp	c6, c7, [csp, #-32]!
+	str	c8, [csp, #-16]!
 
 	mov	c0, c30
 	ldr	c9, push_cap
 	blr	c9
 
+	ldr	c8, [csp], #16
 	ldp	c6, c7, [csp], #32
 	ldp	c4, c5, [csp], #32
 	ldp	c2, c3, [csp], #32
@@ -358,13 +360,13 @@ pop_cap:
 	stp	c2, c3, [csp, #-32]!
 	stp	c4, c5, [csp, #-32]!
 	stp	c6, c7, [csp, #-32]!
-	sub	csp, csp, #16
+	stp	czr, c8, [csp, #-32]!
 
 	scbnds	c0, csp, #16
 	ldr	c9, pop_cap
 	blr	c9
 
-	ldr	c30, [csp], #16
+	ldp	c30, c8, [csp], #32
 	ldp	c6, c7, [csp], #32
 	ldp	c4, c5, [csp], #32
 	ldp	c2, c3, [csp], #32
