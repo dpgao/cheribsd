@@ -391,6 +391,20 @@ _rtld_thread_init(struct RtldLockInfo *pli)
 	if (pli == NULL) {
 		lockinfo.rtli_version = RTLI_VERSION;
 	} else {
+
+#define wrap_with_trampoline(target) target = make_rtld_function_pointer(target)
+		wrap_with_trampoline(pli->lock_create);
+		wrap_with_trampoline(pli->lock_destroy);
+		wrap_with_trampoline(pli->rlock_acquire);
+		wrap_with_trampoline(pli->wlock_acquire);
+		wrap_with_trampoline(pli->lock_release);
+		wrap_with_trampoline(pli->thread_set_flag);
+		wrap_with_trampoline(pli->thread_clr_flag);
+		wrap_with_trampoline(pli->at_fork);
+		wrap_with_trampoline(pli->dlerror_loc);
+		wrap_with_trampoline(pli->dlerror_seen);
+#undef wrap_with_trampoline
+
 		lockinfo.rtli_version = RTLI_VERSION_ONE;
 		obj = obj_from_addr(pli->lock_create);
 		if (obj != NULL) {

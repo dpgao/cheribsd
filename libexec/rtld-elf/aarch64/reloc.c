@@ -181,11 +181,24 @@ static struct tramp_stks_funcs tramp_stks_fs = {
 void
 _rtld_tramp_stks_funcs_init(struct tramp_stks_funcs *fs)
 {
+	fs->getter = make_rtld_function_pointer(fs->getter);
 	*fs->getter() = *tramp_stks_fs.getter();
 	tramp_stks_fs = *fs;
 }
 
-static int
+void *
+_rtld_get_rstk()
+{
+	size_t size = 32 * getpagesize();
+	char *stk = mmap(NULL,
+			 size,
+			 PROT_READ | PROT_WRITE,
+			 MAP_ANON | MAP_PRIVATE | MAP_STACK,
+			 -1, 0);
+	return stk + size;
+}
+
+__unused static int
 tramp_stk_create(struct tramp_stk **out)
 {
 	struct tramp_stk *s = mmap(NULL,
@@ -200,7 +213,7 @@ tramp_stk_create(struct tramp_stk **out)
 	return 0;
 }
 
-static int
+__unused static int
 tramp_stk_push(void *data)
 {
 	if (0x40ac7a5d == (uintptr_t)data)
@@ -231,7 +244,7 @@ start:
 	return 0;
 }
 
-static int
+__unused static int
 tramp_stk_pop(void **out)
 {
 	struct tramp_stks *stks = tramp_stks_fs.getter();
@@ -275,8 +288,8 @@ tramp_pg_create(struct tramp_pg **out)
 	return 0;
 }
 
-int
-tramp_pgs_append(uintptr_t *out, uintptr_t data)
+uintptr_t
+tramp_pgs_append(uintptr_t data)
 {
 	static struct tramp_pgs pgs = SLIST_HEAD_INITIALIZER(pgs);
 
@@ -307,12 +320,9 @@ start:
 
 	memcpy(t, template, len);
 	t->data = data;
-	t->push = tramp_stk_push;
-	t->pop = tramp_stk_pop;
+	t->get_rstk_cap = _rtld_get_rstk;
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
-	*out = cheri_sealentry((uintptr_t)t->code);
-
-	return 0;
+	return cheri_sealentry((uintptr_t)t->code);
 }
 #endif /* __CHERI_PURE_CAPABILITY__ */
 
@@ -558,8 +568,7 @@ reloc_jmpslots(Obj_Entry *obj, int flags, RtldLockState *lockstate)
 			}
 			target = (uintptr_t)make_function_pointer(def, defobj);
 #ifdef __CHERI_PURE_CAPABILITY__
-			if (tramp_pgs_append(&target, target))
-				return (-1);
+			target = tramp_pgs_append(target);
 #endif
 			reloc_jmpslot(where, target, defobj, obj,
 			    (const Elf_Rel *)rela);
@@ -990,7 +999,7 @@ allocate_initial_tls(Obj_Entry *objs)
 	tls_static_space = tls_last_offset + tls_last_size +
 	    RTLD_STATIC_TLS_EXTRA;
 
-	_tcb_set(allocate_tls(objs, NULL, TLS_TCB_SIZE, TLS_TCB_ALIGN));
+	asm ("msr	rctpidr_el0, %0\n" :: "C" (allocate_tls(objs, NULL, TLS_TCB_SIZE, TLS_TCB_ALIGN)));
 }
 
 void *
@@ -998,6 +1007,7 @@ __tls_get_addr(tls_index* ti)
 {
 	uintptr_t **dtvp;
 
-	dtvp = &_tcb_get()->tcb_dtv;
+	asm ("mrs	%0, RCTPIDR_EL0" : "=C" (dtvp));
+	// dtvp = &_tcb_get()->tcb_dtv;
 	return (tls_get_addr_common(dtvp, ti->ti_module, ti->ti_offset));
 }

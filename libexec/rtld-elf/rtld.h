@@ -171,8 +171,8 @@ typedef struct Struct_Sym_Match_Result {
 #ifdef __CHERI_PURE_CAPABILITY__
 struct tramp {
 	uintptr_t data;
-    void *push, *pop;
-    char padding;
+	void *get_rstk_cap;
+	char padding;
 	const char code[] __attribute__((cheri_no_subobject_bounds));
 };
 
@@ -185,13 +185,13 @@ struct tramp_pg {
 SLIST_HEAD(tramp_pgs, tramp_pg);
 
 struct tramp_stks_funcs {
-    struct tramp_stks *(*getter)(void);
+	struct tramp_stks *(*getter)(void);
 };
 
 struct tramp_stk {
-    void **cursor;
-    SLIST_ENTRY(tramp_stk) entries;
-    void *buf[];
+	void **cursor;
+	SLIST_ENTRY(tramp_stk) entries;
+	void *buf[];
 };
 
 SLIST_HEAD(tramp_stks, tramp_stk);
@@ -525,7 +525,7 @@ __END_DECLS
 #endif
 
 #ifndef make_rtld_function_pointer
-#define make_rtld_function_pointer(target_func)	(&target_func)
+#define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func)))
 #endif
 #ifndef make_rtld_local_function_pointer
 #define make_rtld_local_function_pointer(target_func)	(&target_func)
