@@ -189,7 +189,7 @@ _rtld_tramp_stks_funcs_init(struct tramp_stks_funcs *fs)
 void *
 _rtld_get_rstk()
 {
-	size_t size = 32 * getpagesize();
+	size_t size = 0x40000 * getpagesize();
 	char *stk = mmap(NULL,
 			 size,
 			 PROT_READ | PROT_WRITE,
