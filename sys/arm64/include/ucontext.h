@@ -58,6 +58,7 @@ struct capregs {
 	__uintcap_t	cap_sp;
 	__uintcap_t	cap_elr;
 	__uintcap_t	cap_ddc;
+	__uintcap_t	cap_rsp;
 };
 #endif
 
