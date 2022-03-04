@@ -550,7 +550,8 @@ get_mcontext(struct thread *td, mcontext_t *mcp, int clear_ret)
 	mcp->mc_capregs.cap_lr = tf->tf_lr;
 	mcp->mc_capregs.cap_elr = tf->tf_elr;
 	mcp->mc_capregs.cap_ddc = tf->tf_ddc;
-	mcp->mc_capregs.cap_rsp = tf->tf_rsp ;
+	mcp->mc_capregs.cap_rsp = tf->tf_rsp;
+	mcp->mc_capregs.cap_rddc = tf->tf_rddc;
 	get_fpcontext(td, mcp);
 
 	return (0);
@@ -575,6 +576,7 @@ set_mcontext(struct thread *td, mcontext_t *mcp)
 	tf->tf_elr = mcp->mc_capregs.cap_elr;
 	tf->tf_ddc = mcp->mc_capregs.cap_ddc;
 	tf->tf_rsp = mcp->mc_capregs.cap_rsp;
+	tf->tf_rddc = mcp->mc_capregs.cap_rddc;
 	tf->tf_spsr = mcp->mc_spsr;
 	set_fpcontext(td, mcp);
 
@@ -615,7 +617,7 @@ set_mcontext(struct thread *td, mcontext_t *mcp)
 	if ((spsr & PSR_M_MASK) != PSR_M_EL0t ||
 	    (spsr & PSR_AARCH32) != 0 ||
 	    (spsr & PSR_DAIF) != (td->td_frame->tf_spsr & PSR_DAIF))
-		return (EINVAL); 
+		return (EINVAL);
 
 	memcpy(tf->tf_x, mcp->mc_gpregs.gp_x, sizeof(tf->tf_x));
 
