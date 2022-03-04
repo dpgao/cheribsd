@@ -47,6 +47,7 @@ struct trapframe {
 	uintcap_t tf_lr;
 	uintcap_t tf_elr;
 	uintcap_t tf_ddc;
+	uintcap_t tf_rsp;
 #else
 	uint64_t tf_sp;
 	uint64_t tf_lr;
