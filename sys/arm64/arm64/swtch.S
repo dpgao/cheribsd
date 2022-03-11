@@ -299,7 +299,7 @@ ENTRY(fork_trampoline)
 	 * will be set to the desired value anyway.
 	 */
 	ERET
-	
+
 END(fork_trampoline)
 
 ENTRY(savectx)
@@ -318,8 +318,8 @@ ENTRY(savectx)
 	str	PTRN(lr), [PTR(0), #PCB_LR]
 	/* And the old stack pointer */
 	mov	PTR(5), PTRN(sp)
-#if __has_feature(capabilities)
 	str	PTR(5), [PTR(0), #PCB_SP]
+#if __has_feature(capabilities)
 	mrs	c5, ctpidr_el0
 	mrs	c6, ctpidrro_el0
 	stp	c5, c6, [PTR(0), #PCB_TPIDR]
@@ -330,10 +330,9 @@ ENTRY(savectx)
 	mrs	c6, rctpidr_el0
 	stp	c5, c6, [PTR(0), #PCB_RDDC]
 #else
+	mrs	x5, tpidr_el0
 	mrs	x6, tpidrro_el0
-	str	x6, [x0, #PCB_TPIDRRO]
-	mrs	x6, tpidr_el0
-	stp	x5, x6, [x0, #PCB_SP]
+	stp	x5, x6, [x0, #PCB_TPIDR]
 #endif
 
 	/* Store the VFP registers */
