@@ -94,8 +94,6 @@ cpu_fork(struct thread *td1, struct proc *p2, struct thread *td2, int flags)
 #endif
 #if __has_feature(capabilities)
 		td1->td_pcb->pcb_cid_el0 = READ_SPECIALREG_CAP(cid_el0);
-		td1->td_pcb->pcb_rcsp_el0 = READ_SPECIALREG_CAP(rcsp_el0);
-		td1->td_pcb->pcb_rddc_el0 = READ_SPECIALREG_CAP(rddc_el0);
 		td1->td_pcb->pcb_rctpidr_el0 = READ_SPECIALREG_CAP(rctpidr_el0);
 #endif
 	}
@@ -122,8 +120,8 @@ cpu_fork(struct thread *td1, struct proc *p2, struct thread *td2, int flags)
 	td2->td_frame = tf;
 
 	/* Set the return value registers for fork() */
-	td2->td_pcb->pcb_x[8] = (uintptr_t)fork_return;
-	td2->td_pcb->pcb_x[9] = (uintptr_t)td2;
+	td2->td_pcb->pcb_x[16] = (uintptr_t)fork_return;
+	td2->td_pcb->pcb_x[17] = (uintptr_t)td2;
 	td2->td_pcb->pcb_lr = (uintptr_t)fork_trampoline;
 	td2->td_pcb->pcb_sp = (uintptr_t)td2->td_frame;
 	td2->td_pcb->pcb_fpusaved = &td2->td_pcb->pcb_fpustate;
@@ -200,8 +198,8 @@ cpu_copy_thread(struct thread *td, struct thread *td0)
 	bcopy(td0->td_frame, td->td_frame, sizeof(struct trapframe));
 	bcopy(td0->td_pcb, td->td_pcb, sizeof(struct pcb));
 
-	td->td_pcb->pcb_x[8] = (uintptr_t)fork_return;
-	td->td_pcb->pcb_x[9] = (uintptr_t)td;
+	td->td_pcb->pcb_x[16] = (uintptr_t)fork_return;
+	td->td_pcb->pcb_x[17] = (uintptr_t)td;
 	td->td_pcb->pcb_lr = (uintptr_t)fork_trampoline;
 	td->td_pcb->pcb_sp = (uintptr_t)td->td_frame;
 	td->td_pcb->pcb_fpflags &= ~(PCB_FP_STARTED | PCB_FP_KERN | PCB_FP_NOSAVE);
@@ -318,8 +316,8 @@ void
 cpu_fork_kthread_handler(struct thread *td, void (*func)(void *), void *arg)
 {
 
-	td->td_pcb->pcb_x[8] = (uintptr_t)func;
-	td->td_pcb->pcb_x[9] = (uintptr_t)arg;
+	td->td_pcb->pcb_x[16] = (uintptr_t)func;
+	td->td_pcb->pcb_x[17] = (uintptr_t)arg;
 }
 
 void

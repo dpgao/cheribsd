@@ -94,9 +94,6 @@ ENTRY(cpu_throw)
 	msr	ctpidrro_el0, c6
 	ldp	c5, c6, [PTR(4), #PCB_CID]
 	msr	cid_el0, c5
-	msr	rcsp_el0, c6
-	ldp	c5, c6, [PTR(4), #PCB_RDDC]
-	msr	rddc_el0, c5
 	msr	rctpidr_el0, c6
 #else
 	ldp	x5, x6, [x4, #PCB_SP]
@@ -105,18 +102,13 @@ ENTRY(cpu_throw)
 	ldr	x6, [x4, #PCB_TPIDRRO]
 	msr	tpidrro_el0, x6
 #endif
-	ldp	PTR(8), PTR(9), [PTR(4), #PCB_REGS + 8 * PTR_WIDTH]
-	ldp	PTR(10), PTR(11), [PTR(4), #PCB_REGS + 10 * PTR_WIDTH]
-	ldp	PTR(12), PTR(13), [PTR(4), #PCB_REGS + 12 * PTR_WIDTH]
-	ldp	PTR(14), PTR(15), [PTR(4), #PCB_REGS + 14 * PTR_WIDTH]
 	ldp	PTR(16), PTR(17), [PTR(4), #PCB_REGS + 16 * PTR_WIDTH]
-	ldr		 PTR(19), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
-	ldp	PTR(20), PTR(21), [PTR(4), #PCB_REGS + 20 * PTR_WIDTH]
-	ldp	PTR(22), PTR(23), [PTR(4), #PCB_REGS + 22 * PTR_WIDTH]
-	ldp	PTR(24), PTR(25), [PTR(4), #PCB_REGS + 24 * PTR_WIDTH]
-	ldp	PTR(26), PTR(27), [PTR(4), #PCB_REGS + 26 * PTR_WIDTH]
-	ldp	PTR(28), PTR(29), [PTR(4), #PCB_REGS + 28 * PTR_WIDTH]
-	ldr	PTRN(lr), [PTR(4), #PCB_LR]
+	ldp	PTR(19), PTR(20), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
+	ldp	PTR(21), PTR(22), [PTR(4), #PCB_REGS + 21 * PTR_WIDTH]
+	ldp	PTR(23), PTR(24), [PTR(4), #PCB_REGS + 23 * PTR_WIDTH]
+	ldp	PTR(25), PTR(26), [PTR(4), #PCB_REGS + 25 * PTR_WIDTH]
+	ldp	PTR(27), PTR(28), [PTR(4), #PCB_REGS + 27 * PTR_WIDTH]
+	ldp	PTR(29), PTRN(lr), [PTR(4), #PCB_REGS + 29 * PTR_WIDTH]
 
 	ret
 END(cpu_throw)
@@ -136,36 +128,27 @@ ENTRY(cpu_switch)
 	ldr	PTR(4), [PTR(0), #TD_PCB]
 
 	/* Store the callee-saved registers */
-	stp	PTR(8), PTR(9), [PTR(4), #PCB_REGS + 8 * PTR_WIDTH]
-	stp	PTR(10), PTR(11), [PTR(4), #PCB_REGS + 10 * PTR_WIDTH]
-	stp	PTR(12), PTR(13), [PTR(4), #PCB_REGS + 12 * PTR_WIDTH]
-	stp	PTR(14), PTR(15), [PTR(4), #PCB_REGS + 14 * PTR_WIDTH]
 	stp	PTR(16), PTR(17), [PTR(4), #PCB_REGS + 16 * PTR_WIDTH]
-	stp	PTR(18), PTR(19), [PTR(4), #PCB_REGS + 18 * PTR_WIDTH]
-	stp	PTR(20), PTR(21), [PTR(4), #PCB_REGS + 20 * PTR_WIDTH]
-	stp	PTR(22), PTR(23), [PTR(4), #PCB_REGS + 22 * PTR_WIDTH]
-	stp	PTR(24), PTR(25), [PTR(4), #PCB_REGS + 24 * PTR_WIDTH]
-	stp	PTR(26), PTR(27), [PTR(4), #PCB_REGS + 26 * PTR_WIDTH]
-	stp	PTR(28), PTR(29), [PTR(4), #PCB_REGS + 28 * PTR_WIDTH]
-	str	PTRN(lr), [PTR(4), #PCB_LR]
+	stp	PTR(19), PTR(20), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
+	stp	PTR(21), PTR(22), [PTR(4), #PCB_REGS + 21 * PTR_WIDTH]
+	stp	PTR(23), PTR(24), [PTR(4), #PCB_REGS + 23 * PTR_WIDTH]
+	stp	PTR(25), PTR(26), [PTR(4), #PCB_REGS + 25 * PTR_WIDTH]
+	stp	PTR(27), PTR(28), [PTR(4), #PCB_REGS + 27 * PTR_WIDTH]
+	stp	PTR(29), PTRN(lr), [PTR(4), #PCB_REGS + 29 * PTR_WIDTH]
 	/* And the old stack pointer */
 	mov	PTR(5), PTRN(sp)
-#if __has_feature(capabilities)
 	str	PTR(5), [PTR(4), #PCB_SP]
+#if __has_feature(capabilities)
 	mrs	c5, ctpidr_el0
 	mrs	c6, ctpidrro_el0
 	stp	c5, c6, [PTR(4), #PCB_TPIDR]
 	mrs	c5, cid_el0
-	mrs	c6, rcsp_el0
-	stp	c5, c6, [PTR(4), #PCB_CID]
-	mrs	c5, rddc_el0
 	mrs	c6, rctpidr_el0
-	stp	c5, c6, [PTR(4), #PCB_RDDC]
+	stp	c5, c6, [PTR(4), #PCB_CID]
 #else
+	mrs	x5, tpidr_el0
 	mrs	x6, tpidrro_el0
-	str	x6, [x4, #PCB_TPIDRRO]
-	mrs	x6, tpidr_el0
-	stp	x5, x6, [x4, #PCB_SP]
+	stp	x5, x6, [x4, #PCB_TPIDR]
 #endif
 
 	/* If we were single stepping, disable it */
@@ -210,45 +193,35 @@ ENTRY(cpu_switch)
 	set_step_flag w5, x6
 
 	/* Restore the registers */
-#if __has_feature(capabilities)
 	ldr	PTR(5), [PTR(4), #PCB_SP]
 	mov	PTRN(sp), PTR(5)
+#if __has_feature(capabilities)
 	ldp	c5, c6, [PTR(4), #PCB_TPIDR]
 	msr	ctpidr_el0, c5
 	msr	ctpidrro_el0, c6
 	ldp	c5, c6, [PTR(4), #PCB_CID]
 	msr	cid_el0, c5
-	msr	rcsp_el0, c6
-	ldp	c5, c6, [PTR(4), #PCB_RDDC]
-	msr	rddc_el0, c5
 	msr	rctpidr_el0, c6
 #else
-	ldp	x5, x6, [x4, #PCB_SP]
-	mov	sp, x5
-	msr	tpidr_el0, x6
-	ldr	x6, [x4, #PCB_TPIDRRO]
+	ldp	x5, x6, [x4, #PCB_TPIDR]
+	msr	tpidr_el0, x5
 	msr	tpidrro_el0, x6
 #endif
-	ldp	PTR(8), PTR(9), [PTR(4), #PCB_REGS + 8 * PTR_WIDTH]
-	ldp	PTR(10), PTR(11), [PTR(4), #PCB_REGS + 10 * PTR_WIDTH]
-	ldp	PTR(12), PTR(13), [PTR(4), #PCB_REGS + 12 * PTR_WIDTH]
-	ldp	PTR(14), PTR(15), [PTR(4), #PCB_REGS + 14 * PTR_WIDTH]
 	ldp	PTR(16), PTR(17), [PTR(4), #PCB_REGS + 16 * PTR_WIDTH]
-	ldr		 PTR(19), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
-	ldp	PTR(20), PTR(21), [PTR(4), #PCB_REGS + 20 * PTR_WIDTH]
-	ldp	PTR(22), PTR(23), [PTR(4), #PCB_REGS + 22 * PTR_WIDTH]
-	ldp	PTR(24), PTR(25), [PTR(4), #PCB_REGS + 24 * PTR_WIDTH]
-	ldp	PTR(26), PTR(27), [PTR(4), #PCB_REGS + 26 * PTR_WIDTH]
-	ldp	PTR(28), PTR(29), [PTR(4), #PCB_REGS + 28 * PTR_WIDTH]
-	ldr	PTRN(lr), [PTR(4), #PCB_LR]
+	ldp	PTR(19), PTR(20), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
+	ldp	PTR(21), PTR(22), [PTR(4), #PCB_REGS + 21 * PTR_WIDTH]
+	ldp	PTR(23), PTR(24), [PTR(4), #PCB_REGS + 23 * PTR_WIDTH]
+	ldp	PTR(25), PTR(26), [PTR(4), #PCB_REGS + 25 * PTR_WIDTH]
+	ldp	PTR(27), PTR(28), [PTR(4), #PCB_REGS + 27 * PTR_WIDTH]
+	ldp	PTR(29), PTRN(lr), [PTR(4), #PCB_REGS + 29 * PTR_WIDTH]
 
 	str	PTR(zr), [PTR(4), #PCB_REGS + 18 * PTR_WIDTH]
 	ret
 END(cpu_switch)
 
 ENTRY(fork_trampoline)
-	mov	PTR(0), PTR(8)
-	mov	PTR(1), PTR(9)
+	mov	PTR(0), PTR(16)
+	mov	PTR(1), PTR(17)
 	mov	PTR(2), PTRN(sp)
 	mov	fp, #0	/* Stack traceback stops here. */
 	bl	_C_LABEL(fork_exit)
@@ -304,18 +277,12 @@ END(fork_trampoline)
 
 ENTRY(savectx)
 	/* Store the callee-saved registers */
-	stp	PTR(8),  PTR(9),  [PTR(0), #PCB_REGS + 8 * PTR_WIDTH]
-	stp	PTR(10), PTR(11), [PTR(0), #PCB_REGS + 10 * PTR_WIDTH]
-	stp	PTR(12), PTR(13), [PTR(0), #PCB_REGS + 12 * PTR_WIDTH]
-	stp	PTR(14), PTR(15), [PTR(0), #PCB_REGS + 14 * PTR_WIDTH]
-	stp	PTR(16), PTR(17), [PTR(0), #PCB_REGS + 16 * PTR_WIDTH]
-	stp	PTR(18), PTR(19), [PTR(0), #PCB_REGS + 18 * PTR_WIDTH]
-	stp	PTR(20), PTR(21), [PTR(0), #PCB_REGS + 20 * PTR_WIDTH]
-	stp	PTR(22), PTR(23), [PTR(0), #PCB_REGS + 22 * PTR_WIDTH]
-	stp	PTR(24), PTR(25), [PTR(0), #PCB_REGS + 24 * PTR_WIDTH]
-	stp	PTR(26), PTR(27), [PTR(0), #PCB_REGS + 26 * PTR_WIDTH]
-	stp	PTR(28), PTR(29), [PTR(0), #PCB_REGS + 28 * PTR_WIDTH]
-	str	PTRN(lr), [PTR(0), #PCB_LR]
+	stp	PTR(19), PTR(20), [PTR(0), #PCB_REGS + 19 * PTR_WIDTH]
+	stp	PTR(21), PTR(22), [PTR(0), #PCB_REGS + 21 * PTR_WIDTH]
+	stp	PTR(23), PTR(24), [PTR(0), #PCB_REGS + 23 * PTR_WIDTH]
+	stp	PTR(25), PTR(26), [PTR(0), #PCB_REGS + 25 * PTR_WIDTH]
+	stp	PTR(27), PTR(28), [PTR(0), #PCB_REGS + 27 * PTR_WIDTH]
+	stp	PTR(29), PTRN(lr), [PTR(0), #PCB_REGS + 29 * PTR_WIDTH]
 	/* And the old stack pointer */
 	mov	PTR(5), PTRN(sp)
 	str	PTR(5), [PTR(0), #PCB_SP]
@@ -324,11 +291,8 @@ ENTRY(savectx)
 	mrs	c6, ctpidrro_el0
 	stp	c5, c6, [PTR(0), #PCB_TPIDR]
 	mrs	c5, cid_el0
-	mrs	c6, rcsp_el0
-	stp	c5, c6, [PTR(0), #PCB_CID]
-	mrs	c5, rddc_el0
 	mrs	c6, rctpidr_el0
-	stp	c5, c6, [PTR(0), #PCB_RDDC]
+	stp	c5, c6, [PTR(0), #PCB_CID]
 #else
 	mrs	x5, tpidr_el0
 	mrs	x6, tpidrro_el0
