@@ -234,21 +234,17 @@ ENTRY(fork_trampoline)
 
 	/* Restore sp, lr, elr, and spsr */
 	ldp	CAP(18), CAPN(lr), [PTRN(sp), #TF_SP]
-#if __has_feature(capabilities)
-	ldr	CAP(10), [PTRN(sp), #TF_ELR]
-	ldr	x11, [PTRN(sp), #TF_SPSR]
-#else
-	ldp	CAP(10), CAP(11), [sp, #TF_ELR]
-#endif
 	msr	CAPN(sp_el0), CAP(18)
-	msr	spsr_el1, x11
-	msr	CAPN(elr_el1), CAP(10)
-
-	/* Restore ddc */
+	ldp	CAP(0), CAP(1), [PTRN(sp), #TF_ELR]
+	msr	CAPN(elr_el1), CAP(0)
 #if __has_feature(capabilities)
-	ldr	c0, [PTRN(sp), #TF_DDC]
-	msr	ddc_el0, c0
+	msr	ddc_el0, c1
+	ldp	c0, c1, [PTRN(sp), #TF_RSP]
+	msr	rcsp_el0, c0
+	msr	rddc_el0, c1
+	ldr	x1, [PTRN(sp), #TF_SPSR]
 #endif
+	msr	spsr_el1, x1
 
 	/* Restore the CPU registers */
 	ldp	CAP(0), CAP(1), [PTRN(sp), #TF_X + 0 * CAP_WIDTH]

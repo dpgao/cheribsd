@@ -130,8 +130,8 @@ __FBSDID("$FreeBSD$");
 	ldr	c9, [PTRN(sp), #(TF_ELR)]
 	msr	celr_el1, c9
 	ldp	c9, c10, [PTRN(sp), #(TF_DDC)]
-	msr	ddc_el0, c10
-	msr	rcsp_el0, c9
+	msr	ddc_el0, c9
+	msr	rcsp_el0, c10
 	ldp	c9, c10, [PTRN(sp), #(TF_RDDC)]
 	msr	rddc_el0, c9
 #else
