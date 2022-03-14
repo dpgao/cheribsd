@@ -55,25 +55,23 @@ __FBSDID("$FreeBSD$");
 	stp	CAP(4),  CAP(5),  [PTRN(sp), #(TF_X + 4  * CAP_WIDTH)]
 	stp	CAP(2),  CAP(3),  [PTRN(sp), #(TF_X + 2  * CAP_WIDTH)]
 	stp	CAP(0),  CAP(1),  [PTRN(sp), #(TF_X + 0  * CAP_WIDTH)]
-#if __has_feature(capabilities)
-	mrs	c9, ddc_el0
-	mrs	c13, rcsp_el0
-	mrs	c14, rddc_el0
-#endif
-	mrs	CAP(10), CAPN(elr_el1)
-	mrs	x11, spsr_el1
-	mrs	x12, esr_el1
 .if \el == 0
 	mrs	CAP(18), CAPN(sp_el0)
 .endif
-#if __has_feature(capabilities)
-	stp	c10, c9, [PTRN(sp), #(TF_ELR)]
-	stp	c13, c14, [PTRN(sp), #(TF_RSP)]
-#else
-	str	x10, [sp, #(TF_ELR)]
-#endif
-	stp	w11, w12, [PTRN(sp), #(TF_SPSR)]
 	stp	CAP(18), CAPN(lr), [PTRN(sp), #(TF_SP)]
+	mrs	CAP(9), CAPN(elr_el1)
+#if __has_feature(capabilities)
+	mrs	c10, ddc_el0
+	stp	c9, c10, [PTRN(sp), #(TF_ELR)]
+	mrs	c9, rcsp_el0
+	mrs	c10, rddc_el0
+	stp	c9, c10, [PTRN(sp), #(TF_RSP)]
+#else
+	str	x9, [sp, #(TF_ELR)]
+#endif
+	mrs	x9, spsr_el1
+	mrs	x10, esr_el1
+	stp	w9, w10, [PTRN(sp), #(TF_SPSR)]
 	mrs	PTR(18), PTRN(tpidr_el1)
 	add	PTR(29), PTRN(sp), #(TF_SIZE)
 .if \el == 0
@@ -125,23 +123,22 @@ __FBSDID("$FreeBSD$");
 1:
 .endif
 	ldp	CAP(18), CAPN(lr), [PTRN(sp), #(TF_SP)]
-#if __has_feature(capabilities)
-	ldr	w11, [PTRN(sp), #(TF_SPSR)]
-	ldp	c10, c9, [PTRN(sp), #(TF_ELR)]
-	ldp	c13, c14, [PTRN(sp), #(TF_RSP)]
-#else
-	ldp	x10, x11, [sp, #(TF_ELR)]
-#endif
 .if \el == 0
 	msr	CAPN(sp_el0), CAP(18)
 .endif
-	msr	spsr_el1, x11
-	msr	CAPN(elr_el1), CAP(10)
 #if __has_feature(capabilities)
-	msr	ddc_el0, c9
-	msr	rcsp_el0, c13
-	msr	rddc_el0, c14
+	ldr	c9, [PTRN(sp), #(TF_ELR)]
+	msr	celr_el1, c9
+	ldp	c9, c10, [PTRN(sp), #(TF_DDC)]
+	msr	ddc_el0, c10
+	msr	rcsp_el0, c9
+	ldp	c9, c10, [PTRN(sp), #(TF_RDDC)]
+	msr	rddc_el0, c9
+#else
+	ldp	x9, x10, [sp, #(TF_ELR)]
+	msr	elr_el1, x9
 #endif
+	msr	spsr_el1, x10
 	ldp	CAP(0),  CAP(1),  [PTRN(sp), #(TF_X + 0  * CAP_WIDTH)]
 	ldp	CAP(2),  CAP(3),  [PTRN(sp), #(TF_X + 2  * CAP_WIDTH)]
 	ldp	CAP(4),  CAP(5),  [PTRN(sp), #(TF_X + 4  * CAP_WIDTH)]
