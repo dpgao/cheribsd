@@ -86,23 +86,16 @@ ENTRY(cpu_throw)
 	set_step_flag w5, x6
 
 	/* Restore the registers */
-#if __has_feature(capabilities)
 	ldr	PTR(5), [PTR(4), #PCB_SP]
 	mov	PTRN(sp), PTR(5)
-	ldp	c5, c6, [PTR(4), #PCB_TPIDR]
-	msr	ctpidr_el0, c5
-	msr	ctpidrro_el0, c6
+	ldp	PTR(5), PTR(6), [PTR(4), #PCB_TPIDR]
+	msr	PTRN(tpidr_el0), PTR(5)
+	msr	PTRN(tpidrro_el0), PTR(6)
+#if __has_feature(capabilities)
 	ldp	c5, c6, [PTR(4), #PCB_CID]
 	msr	cid_el0, c5
 	msr	rctpidr_el0, c6
-#else
-	ldp	x5, x6, [x4, #PCB_SP]
-	mov	sp, x5
-	msr	tpidr_el0, x6
-	ldr	x6, [x4, #PCB_TPIDRRO]
-	msr	tpidrro_el0, x6
 #endif
-	ldp	PTR(16), PTR(17), [PTR(4), #PCB_REGS + 16 * PTR_WIDTH]
 	ldp	PTR(19), PTR(20), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
 	ldp	PTR(21), PTR(22), [PTR(4), #PCB_REGS + 21 * PTR_WIDTH]
 	ldp	PTR(23), PTR(24), [PTR(4), #PCB_REGS + 23 * PTR_WIDTH]
@@ -128,7 +121,6 @@ ENTRY(cpu_switch)
 	ldr	PTR(4), [PTR(0), #TD_PCB]
 
 	/* Store the callee-saved registers */
-	stp	PTR(16), PTR(17), [PTR(4), #PCB_REGS + 16 * PTR_WIDTH]
 	stp	PTR(19), PTR(20), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
 	stp	PTR(21), PTR(22), [PTR(4), #PCB_REGS + 21 * PTR_WIDTH]
 	stp	PTR(23), PTR(24), [PTR(4), #PCB_REGS + 23 * PTR_WIDTH]
@@ -138,17 +130,13 @@ ENTRY(cpu_switch)
 	/* And the old stack pointer */
 	mov	PTR(5), PTRN(sp)
 	str	PTR(5), [PTR(4), #PCB_SP]
+	mrs	PTR(5), PTRN(tpidr_el0)
+	mrs	PTR(6), PTRN(tpidrro_el0)
+	stp	PTR(5), PTR(6), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
-	mrs	c5, ctpidr_el0
-	mrs	c6, ctpidrro_el0
-	stp	c5, c6, [PTR(4), #PCB_TPIDR]
 	mrs	c5, cid_el0
 	mrs	c6, rctpidr_el0
 	stp	c5, c6, [PTR(4), #PCB_CID]
-#else
-	mrs	x5, tpidr_el0
-	mrs	x6, tpidrro_el0
-	stp	x5, x6, [x4, #PCB_TPIDR]
 #endif
 
 	/* If we were single stepping, disable it */
@@ -195,19 +183,14 @@ ENTRY(cpu_switch)
 	/* Restore the registers */
 	ldr	PTR(5), [PTR(4), #PCB_SP]
 	mov	PTRN(sp), PTR(5)
+	ldp	PTR(5), PTR(6), [PTR(4), #PCB_TPIDR]
+	msr	PTRN(tpidr_el0), PTR(5)
+	msr	PTRN(tpidrro_el0), PTR(6)
 #if __has_feature(capabilities)
-	ldp	c5, c6, [PTR(4), #PCB_TPIDR]
-	msr	ctpidr_el0, c5
-	msr	ctpidrro_el0, c6
 	ldp	c5, c6, [PTR(4), #PCB_CID]
 	msr	cid_el0, c5
 	msr	rctpidr_el0, c6
-#else
-	ldp	x5, x6, [x4, #PCB_TPIDR]
-	msr	tpidr_el0, x5
-	msr	tpidrro_el0, x6
 #endif
-	ldp	PTR(16), PTR(17), [PTR(4), #PCB_REGS + 16 * PTR_WIDTH]
 	ldp	PTR(19), PTR(20), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
 	ldp	PTR(21), PTR(22), [PTR(4), #PCB_REGS + 21 * PTR_WIDTH]
 	ldp	PTR(23), PTR(24), [PTR(4), #PCB_REGS + 23 * PTR_WIDTH]
@@ -215,13 +198,12 @@ ENTRY(cpu_switch)
 	ldp	PTR(27), PTR(28), [PTR(4), #PCB_REGS + 27 * PTR_WIDTH]
 	ldp	PTR(29), PTRN(lr), [PTR(4), #PCB_REGS + 29 * PTR_WIDTH]
 
-	str	PTR(zr), [PTR(4), #PCB_REGS + 18 * PTR_WIDTH]
 	ret
 END(cpu_switch)
 
 ENTRY(fork_trampoline)
-	mov	PTR(0), PTR(16)
-	mov	PTR(1), PTR(17)
+	mov	PTR(0), PTR(19)
+	mov	PTR(1), PTR(20)
 	mov	PTR(2), PTRN(sp)
 	mov	fp, #0	/* Stack traceback stops here. */
 	bl	_C_LABEL(fork_exit)
@@ -282,17 +264,13 @@ ENTRY(savectx)
 	/* And the old stack pointer */
 	mov	PTR(5), PTRN(sp)
 	str	PTR(5), [PTR(0), #PCB_SP]
+	mrs	PTR(5), PTRN(tpidr_el0)
+	mrs	PTR(6), PTRN(tpidrro_el0)
+	stp	PTR(5), PTR(6), [PTR(0), #PCB_TPIDR]
 #if __has_feature(capabilities)
-	mrs	c5, ctpidr_el0
-	mrs	c6, ctpidrro_el0
-	stp	c5, c6, [PTR(0), #PCB_TPIDR]
 	mrs	c5, cid_el0
 	mrs	c6, rctpidr_el0
 	stp	c5, c6, [PTR(0), #PCB_CID]
-#else
-	mrs	x5, tpidr_el0
-	mrs	x6, tpidrro_el0
-	stp	x5, x6, [x0, #PCB_TPIDR]
 #endif
 
 	/* Store the VFP registers */
