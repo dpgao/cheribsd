@@ -79,7 +79,6 @@ __FBSDID("$FreeBSD$");
 .endm
 
 .macro	save_registers el
-	add	PTR(29), PTRN(sp), #(TF_SIZE)
 .if \el == 0
 #if defined(PERTHREAD_SSP)
 	/* Load the SSP canary to sp_el0 */
