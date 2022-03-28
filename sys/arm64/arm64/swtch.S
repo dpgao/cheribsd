@@ -250,6 +250,7 @@ ENTRY(fork_trampoline)
 	ldp	CAP(18), CAPN(lr), [PTRN(sp), #TF_SP]
 #if __has_feature(capabilities)
 	ldp	CAP(10), CAP(12), [PTRN(sp), #TF_ELR]
+	ldp	CAP(13), CAP(14), [PTRN(sp), #TF_RSP]
 	ldr	x11, [PTRN(sp), #TF_SPSR]
 #else
 	ldp	CAP(10), CAP(11), [sp, #TF_ELR]
@@ -259,6 +260,8 @@ ENTRY(fork_trampoline)
 	msr	CAPN(elr_el1), CAP(10)
 #if __has_feature(capabilities)
 	msr	ddc_el0, c12
+	msr	rcsp_el0, c13
+	msr	rddc_el0, c14
 #endif
 
 	/* Restore the CPU registers */

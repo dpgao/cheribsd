@@ -64,6 +64,8 @@ __FBSDID("$FreeBSD$");
 .endif
 #if __has_feature(capabilities)
 	mrs	c9, ddc_el0
+	mrs	c13, rcsp_el0
+	mrs	c14, rddc_el0
 #endif
 	mrs	CAP(10), CAPN(elr_el1)
 	mrs	x11, spsr_el1
@@ -71,6 +73,7 @@ __FBSDID("$FreeBSD$");
 	stp	CAP(18), CAPN(lr), [PTRN(sp), #(TF_SP - TF_X)]!
 #if __has_feature(capabilities)
 	stp	c10, c9, [PTRN(sp), #(TF_ELR)]
+	stp	c13, c14, [PTRN(sp), #(TF_RSP)]
 #else
 	str	x10, [sp, #(TF_ELR)]
 #endif
@@ -141,6 +144,7 @@ __FBSDID("$FreeBSD$");
 #if __has_feature(capabilities)
 	ldr	w11, [PTRN(sp), #(TF_SPSR)]
 	ldp	c10, c9, [PTRN(sp), #(TF_ELR)]
+	ldp	c14, c15, [PTRN(sp), #(TF_RSP)]
 #else
 	ldp	x10, x11, [sp, #(TF_ELR)]
 #endif
@@ -151,6 +155,8 @@ __FBSDID("$FreeBSD$");
 	msr	CAPN(elr_el1), CAP(10)
 #if __has_feature(capabilities)
 	msr	ddc_el0, c9
+	msr	rcsp_el0, c14
+	msr	rddc_el0, c15
 #endif
 	ldp	CAP(0),  CAP(1),  [PTRN(sp), #(TF_X + 0  * CAP_WIDTH)]
 	ldp	CAP(2),  CAP(3),  [PTRN(sp), #(TF_X + 2  * CAP_WIDTH)]
