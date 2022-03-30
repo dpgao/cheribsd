@@ -104,10 +104,12 @@ END(.rtld_start)
  * x17 = &_rtld_bind_start
  */
 ENTRY(_rtld_bind_start)
+#ifdef __CHERI_PURE_CAPABILITY__
 	mrs	c9, RCSP_EL0
-	ldp	c10, c11, [c9], #32
-	stp	c10, c11, [csp, #-32]!
+	ldp	c10, c11, [c9], #(CAP_WIDTH * 2)
+	stp	c10, c11, [csp, #-(CAP_WIDTH * 2)]!
 	msr	RCSP_EL0, c9
+#endif
 
 	mov	PTR(17), PTRN(sp)
 
@@ -438,29 +440,29 @@ data_cap:
 get_rstk_cap:
 	.chericap	0
 
-	str	c30, [csp, #-16]!
-	mrs	c30, RCSP_EL0
-	cbnz	x30, 1f
+	mrs	c9, RCSP_EL0
+	stp	c30, c9, [csp, #-(CAP_WIDTH * 2)]!
+	cbnz	x9, 1f
 
-	str	c0, [csp, #-16]!
-	stp	c1, c2, [csp, #-32]!
-	stp	c3, c4, [csp, #-32]!
-	stp	c5, c6, [csp, #-32]!
-	stp	c7, c8, [csp, #-32]!
+	str	c0, [csp, #-CAP_WIDTH]!
+	stp	c1, c2, [csp, #-(CAP_WIDTH * 2)]!
+	stp	c3, c4, [csp, #-(CAP_WIDTH * 2)]!
+	stp	c5, c6, [csp, #-(CAP_WIDTH * 2)]!
+	stp	c7, c8, [csp, #-(CAP_WIDTH * 2)]!
 
-	mov	c0, c30
 	ldr	c9, get_rstk_cap
 	blr	c9
 	msr	RCSP_EL0, c0
 
-	ldp	c7, c8, [csp], #32
-	ldp	c5, c6, [csp], #32
-	ldp	c3, c4, [csp], #32
-	ldp	c1, c2, [csp], #32
-	ldr	c0, [csp], #16
+	ldp	c7, c8, [csp], #(CAP_WIDTH * 2)
+	ldp	c5, c6, [csp], #(CAP_WIDTH * 2)
+	ldp	c3, c4, [csp], #(CAP_WIDTH * 2)
+	ldp	c1, c2, [csp], #(CAP_WIDTH * 2)
+	ldr	c0, [csp], #CAP_WIDTH
 
 1:	ldr	c9, data_cap
 	blrr	c9
-	ldr	c30, [csp], #16
+	ldp	c30, c9, [csp], #(CAP_WIDTH * 2)
+	msr	RCSP_EL0, c9
 	retr	c30
 #endif
