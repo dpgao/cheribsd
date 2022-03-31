@@ -46,8 +46,6 @@ struct pcb {
 	uintcap_t	pcb_tpidrro_el0;
 #if __has_feature(capabilities)
 	uintcap_t	pcb_cid_el0;
-	uintcap_t	pcb_rcsp_el0;
-	uintcap_t	pcb_rddc_el0;
 	uintcap_t	pcb_rctpidr_el0;
 #endif
 

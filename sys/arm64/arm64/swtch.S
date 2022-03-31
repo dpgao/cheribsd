@@ -95,16 +95,13 @@ ENTRY(cpu_throw)
 	ldp	PTR(6), PTR(7), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
 	ldp	c8, c9, [PTR(4), #PCB_CID]
-	ldp	c10, c11, [PTR(4), #PCB_RDDC]
 #endif
 	mov	PTRN(sp), PTR(5)
 	msr	PTRN(tpidr_el0), PTR(6)
 	msr	PTRN(tpidrro_el0), PTR(7)
 #if __has_feature(capabilities)
 	msr	cid_el0, c8
-	msr	rcsp_el0, c9
-	msr	rddc_el0, c10
-	msr	rctpidr_el0, c11
+	msr	rctpidr_el0, c9
 #endif
 	ldp	PTR(19), PTR(20), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
 	ldp	PTR(21), PTR(22), [PTR(4), #PCB_REGS + 21 * PTR_WIDTH]
@@ -143,15 +140,12 @@ ENTRY(cpu_switch)
 	mrs	PTR(7), PTRN(tpidrro_el0)
 #if __has_feature(capabilities)
 	mrs	c8, cid_el0
-	mrs	c9, rcsp_el0
-	mrs	c10, rddc_el0
-	mrs	c11, rctpidr_el0
+	mrs	c9, rctpidr_el0
 #endif
 	str	PTR(5), [PTR(4), #PCB_SP]
 	stp	PTR(6), PTR(7), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
 	stp	c8, c9, [PTR(4), #PCB_CID]
-	stp	c10, c11, [PTR(4), #PCB_RDDC]
 #endif
 
 	/* If we were single stepping, disable it */
@@ -206,16 +200,13 @@ ENTRY(cpu_switch)
 	ldp	PTR(6), PTR(7), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
 	ldp	c8, c9, [PTR(4), #PCB_CID]
-	ldp	c10, c11, [PTR(4), #PCB_RDDC]
 #endif
 	mov	PTRN(sp), PTR(5)
 	msr	PTRN(tpidr_el0), PTR(6)
 	msr	PTRN(tpidrro_el0), PTR(7)
 #if __has_feature(capabilities)
 	msr	cid_el0, c8
-	msr	rcsp_el0, c9
-	msr	rddc_el0, c10
-	msr	rctpidr_el0, c11
+	msr	rctpidr_el0, c9
 #endif
 	ldp	PTR(19), PTR(20), [PTR(4), #PCB_REGS + 19 * PTR_WIDTH]
 	ldp	PTR(21), PTR(22), [PTR(4), #PCB_REGS + 21 * PTR_WIDTH]
@@ -303,15 +294,12 @@ ENTRY(savectx)
 	mrs	PTR(7), PTRN(tpidrro_el0)
 #if __has_feature(capabilities)
 	mrs	c8, cid_el0
-	mrs	c9, rcsp_el0
-	mrs	c10, rddc_el0
-	mrs	c11, rctpidr_el0
+	mrs	c9, rctpidr_el0
 #endif
 	str	PTR(5), [PTR(4), #PCB_SP]
 	stp	PTR(6), PTR(7), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
 	stp	c8, c9, [PTR(4), #PCB_CID]
-	stp	c10, c11, [PTR(4), #PCB_RDDC]
 #endif
 
 	/* Store the VFP registers */

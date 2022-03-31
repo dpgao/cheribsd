@@ -94,8 +94,6 @@ cpu_fork(struct thread *td1, struct proc *p2, struct thread *td2, int flags)
 #endif
 #if __has_feature(capabilities)
 		td1->td_pcb->pcb_cid_el0 = READ_SPECIALREG_CAP(cid_el0);
-		td1->td_pcb->pcb_rcsp_el0 = READ_SPECIALREG_CAP(rcsp_el0);
-		td1->td_pcb->pcb_rddc_el0 = READ_SPECIALREG_CAP(rddc_el0);
 		td1->td_pcb->pcb_rctpidr_el0 = READ_SPECIALREG_CAP(rctpidr_el0);
 #endif
 	}
