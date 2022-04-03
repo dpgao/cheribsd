@@ -1101,7 +1101,7 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
     *exit_proc = rtld_exit_ptr;
     *objp = obj_main;
 
-    return cheri_sealentry((func_ptr_type)obj_main->entry);
+    return (func_ptr_type)tramp_pgs_append((uintptr_t)cheri_sealentry(obj_main->entry));
 }
 
 void *
