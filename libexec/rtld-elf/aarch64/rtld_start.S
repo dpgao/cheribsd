@@ -68,16 +68,13 @@ ENTRY(.rtld_start)
 	add	c2, csp, #16
 	scbnds	c2, c2, #16			/* obj_main */
 	bl	_rtld				/* Call the loader */
-	mov	c21, c0				/* Backup the entry point*/
-
-	bl	_rtld_get_rstk
-	msr	RCSP_EL0, c0
+	mov	c8, c0				/* Backup the entry point*/
 
 	ldr	c1, [csp, #0]			/* Load cleanup */
 	ldr	c2, [csp, #16]			/* Load obj_main */
 	mov	c0, c19				/* Restore aux */
 	mov	csp, c20			/* Restore the stack pointer */
-	brr	c21				/* Jump to the entry point */
+	br	c8				/* Jump to the entry point */
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	mov	x19, x0		/* Put ps_strings in a callee-saved register */
 	mov	x20, sp		/* And the stack pointer */
