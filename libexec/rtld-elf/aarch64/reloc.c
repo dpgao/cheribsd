@@ -40,6 +40,9 @@ __FBSDID("$FreeBSD$");
 #include "debug.h"
 #include "rtld.h"
 #include "rtld_printf.h"
+#include "rtld_libc.h"
+
+#include <stdalign.h>
 
 #if __has_feature(capabilities)
 #include "cheri_reloc.h"
@@ -167,97 +170,103 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 	}
 }
 
-static struct tramp_stks *
-def_tramp_stks_get(void)
-{
-	static struct tramp_stks def_stks = SLIST_HEAD_INITIALIZER(&def_stks);
-	return &def_stks;
-}
-
-static struct tramp_stks_funcs tramp_stks_fs = {
-	.getter = def_tramp_stks_get
+struct tramp_stk_table {
+	vaddr_t key;
+	uintptr_t *stk;
 };
 
-void
-_rtld_tramp_stks_funcs_init(struct tramp_stks_funcs *fs)
+static void
+get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tramp_stk_table *cur)
 {
-	fs->getter = make_rtld_function_pointer(fs->getter);
-	*fs->getter() = *tramp_stks_fs.getter();
-	tramp_stks_fs = *fs;
-}
 
-void *
-_rtld_get_rstk()
-{
-	size_t size = 0x40000 * getpagesize();
-	char *stk = mmap(NULL,
-			 size,
-			 PROT_READ | PROT_WRITE,
-			 MAP_ANON | MAP_PRIVATE | MAP_STACK,
-			 -1, 0);
-	return stk + size;
-}
+#define	KEY_ALIGNMENT 4
+#define	DEFAULT_FLAG_WIDTH 1
+#define DEFAULT_SIZE (1 << DEFAULT_FLAG_WIDTH)
+#define HASH_KEY(key, width) ((key >> KEY_ALIGNMENT) & ((DEFAULT_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
 
-__unused static int
-tramp_stk_create(struct tramp_stk **out)
-{
-	struct tramp_stk *s = mmap(NULL,
-				   getpagesize(),
-				   PROT_READ | PROT_WRITE,
-				   MAP_ANON | MAP_PRIVATE,
-				   -1, 0);
-	if (s == MAP_FAILED)
-		rtld_die();
-	s->cursor = s->buf;
-	*out = s;
-	return 0;
-}
+	vaddr_t key = cheri_getaddress(dst);
 
-__unused static int
-tramp_stk_push(void *data)
-{
-	if (0x40ac7a5d == (uintptr_t)data)
-		return 0;
+	if (cur->key) {
 
-	struct tramp_stks *stks = tramp_stks_fs.getter();
-	int n_retry = 0;
-	struct tramp_stk *s = SLIST_FIRST(stks);
-	goto start;
+		vaddr_t lim;
+		asm ("gclim	%0, %1" : "=r" (lim) : "C" (table));
 
-retry:
-	if (n_retry++)
-		rtld_die();
-	if (tramp_stk_create(&s))
-		rtld_die();
-	SLIST_INSERT_HEAD(stks, s, entries);
+		size_t old_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
 
-start:
-	if (!s)
-		goto retry;
+		flags |= flags + 1;
+		size_t new_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+		struct tramp_stk_table *new_t = xcalloc(new_len, sizeof(*new_t));
 
-	void **p = cheri_setbounds(s->cursor++, sizeof(*p));
-	if (!cheri_gettag(p))
-		goto retry;
+		asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
 
-	*p = data;
+		for (size_t i = 0; i < old_len; ++i) {
+			if (!table[i].key)
+				continue;
 
-	return 0;
-}
+			size_t offset = HASH_KEY(key, flags);
 
-__unused static int
-tramp_stk_pop(void **out)
-{
-	struct tramp_stks *stks = tramp_stks_fs.getter();
-	struct tramp_stk *s = SLIST_FIRST(stks);
-	if (s->cursor == s->buf) {
-		SLIST_REMOVE_HEAD(stks, entries);
-		if (munmap(s, getpagesize())) {
-			rtld_die();
+			// Must terminate
+			while (new_t[offset].key) {
+				offset = (offset - 1) & (new_len - 1);
+			}
+
+			new_t[offset] = (struct tramp_stk_table) {
+				.key = table[i].key,
+				.stk = table[i].stk
+			};
 		}
-		s = SLIST_FIRST(stks);
+
+		// XXX: Race condition!
+		free(table);
+		table = new_t;
+		asm ("msr	ctpidr_el0, %0" :: "C" (table));
+
+	} else {
+
+		size_t size = 0x40000 * getpagesize();
+		char *stk = mmap(NULL,
+				 size,
+				 PROT_READ | PROT_WRITE,
+				 MAP_ANON | MAP_PRIVATE | MAP_STACK,
+				 -1, 0);
+		if (stk == MAP_FAILED)
+			rtld_die();
+		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
+		uintptr_t *w_stk = (uintptr_t *)stk;
+		w_stk[-1] = (uintptr_t)&w_stk[-1];
+
+		cur->key = key;
+		cur->stk = w_stk;
+
+		struct Struct_Stack_Entry *entry = xmalloc(sizeof(*entry));
+		entry->stack = w_stk;
+
+		lockinfo.wlock_acquire(dst->stackslock);
+		SLIST_INSERT_HEAD(&dst->stacks, entry, link);
+		lockinfo.lock_release(dst->stackslock);
 	}
-	*out = *(--s->cursor);
-	return 0;
+}
+
+static struct tramp_delegate delegates;
+
+void _rtld_thread_start(struct pthread *curthread)
+{
+	void *tls;
+	asm ("mrs	%0, ctpidr_el0" : "=C" (tls));
+	asm ("msr	rctpidr_el0, %0" :: "C" (tls));
+
+	tls = xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table));
+	asm ("msr	ctpidr_el0, %0" :: "C" (tls));
+
+	uintptr_t wrapped_entry = tramp_pgs_append((uintptr_t)delegates.thr_thread_entry, obj_from_addr(delegates.thr_thread_entry));
+
+	((void (*)(struct pthread *curthread))wrapped_entry)(curthread);
+}
+
+void
+_rtld_tramp_stks_funcs_init(struct tramp_delegate *delegate)
+{
+	delegates = *delegate;
 }
 
 static void *
@@ -289,12 +298,15 @@ tramp_pg_create(struct tramp_pg **out)
 }
 
 uintptr_t
-tramp_pgs_append(uintptr_t data)
+tramp_pgs_append(uintptr_t data, const Obj_Entry *dst)
 {
 	static struct tramp_pgs pgs = SLIST_HEAD_INITIALIZER(pgs);
 
-	extern const struct tramp __start_tramp_template;
-	const struct tramp *template = &__start_tramp_template;
+	extern const struct tramp __start_tramp_template_exe;
+	static const struct tramp *template_exe = &__start_tramp_template_exe;
+
+	extern const struct tramp __start_tramp_template_res;
+	static const struct tramp *templte_res = &__start_tramp_template_res;
 
 	int n_retry = 0;
 	struct tramp_pg *pg = SLIST_FIRST(&pgs);
@@ -311,6 +323,11 @@ start:
 	if (!pg)
 		goto retry;
 
+	const struct tramp *template;
+	if (cheri_getperm(data) & CHERI_PERM_EXECUTIVE)
+		template = template_exe;
+	else
+		template = templte_res;
 	size_t len = cheri_getlen(template);
 
 	struct tramp *t = __align_up(pg->cursor, _Alignof(typeof(*t)));
@@ -320,7 +337,8 @@ start:
 
 	memcpy(t, template, len);
 	t->data = data;
-	t->get_rstk_cap = _rtld_get_rstk;
+	t->get_rstk_cap = get_rstk;
+	t->dst_obj = dst;
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
 	return cheri_sealentry((uintptr_t)t->code);
 }
@@ -587,7 +605,7 @@ reloc_jmpslots(Obj_Entry *obj, int flags, RtldLockState *lockstate)
 			}
 			target = (uintptr_t)make_function_pointer(def, defobj);
 #ifdef __CHERI_PURE_CAPABILITY__
-			target = tramp_pgs_append(target);
+			target = tramp_pgs_append(target, defobj);
 #endif
 			reloc_jmpslot(where, target, defobj, obj,
 			    (const Elf_Rel *)rela);
@@ -643,7 +661,7 @@ reloc_iresolve_one(Obj_Entry *obj, const Elf_Rela *rela,
 	ptr = (uintptr_t)(obj->relocbase + rela->r_addend);
 #endif
 	lock_release(rtld_bind_lock, lockstate);
-	ptr = tramp_pgs_append(ptr);
+	ptr = tramp_pgs_append(ptr, obj);
 	target = call_ifunc_resolver(ptr);
 	wlock_acquire(rtld_bind_lock, lockstate);
 	*where = target;
@@ -983,6 +1001,7 @@ void
 allocate_initial_tls(Obj_Entry *objs)
 {
 
+	asm ("msr	ctpidr_el0, %0\n" :: "C" (xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table))));
 	/*
 	* Fix the size of the static TLS block by using the maximum
 	* offset allocated so far and adding a bit for dynamic modules to
@@ -999,7 +1018,7 @@ __tls_get_addr(tls_index* ti)
 {
 	uintptr_t **dtvp;
 
-	asm ("mrs	%0, RCTPIDR_EL0" : "=C" (dtvp));
+	asm ("mrs	%0, rctpidr_el0" : "=C" (dtvp));
 	// dtvp = &_tcb_get()->tcb_dtv;
 	return (tls_get_addr_common(dtvp, ti->ti_module, ti->ti_offset));
 }

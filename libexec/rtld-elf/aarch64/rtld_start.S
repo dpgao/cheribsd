@@ -74,7 +74,7 @@ ENTRY(.rtld_start)
 	ldr	c2, [csp, #16]			/* Load obj_main */
 	mov	c0, c19				/* Restore aux */
 	mov	csp, c20			/* Restore the stack pointer */
-	br	c8				/* Jump to the entry point */
+	blrr	c8				/* Jump to the entry point */
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	mov	x19, x0		/* Put ps_strings in a callee-saved register */
 	mov	x20, sp		/* And the stack pointer */
@@ -101,14 +101,16 @@ END(.rtld_start)
  * x17 = &_rtld_bind_start
  */
 ENTRY(_rtld_bind_start)
+	// Need to manually maintain the invariance of the trampoline
+	// Since the caller is Restricted, cache its rcsp
 #ifdef __CHERI_PURE_CAPABILITY__
-	mrs	c9, RCSP_EL0
-	ldp	c10, c11, [c9], #(CAP_WIDTH * 2)
-	stp	c10, c11, [csp, #-(CAP_WIDTH * 2)]!
-	msr	RCSP_EL0, c9
-#endif
-
+	mrs	c17, RCSP_EL0
+	gclim	x10, c17
+	scvalue c10, c17, x10
+	str	c17, [c10, #-CAP_WIDTH]
+#else
 	mov	PTR(17), PTRN(sp)
+#endif
 
 	/* Save frame pointer and SP */
 	stp	PTR(29), PTR(30), [PTRN(sp), #-(PTR_WIDTH * 2)]!
@@ -123,6 +125,7 @@ ENTRY(_rtld_bind_start)
 	stp	CAP(4), CAP(5), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 	stp	CAP(6), CAP(7), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 	stp	CAP(8), CAP(9), [PTRN(sp), #-(CAP_WIDTH * 2)]!
+	str	CAP(17), [PTRN(sp), #-CAP_WIDTH]!
 
 	/* Save any floating-point arguments */
 	stp	q0, q1, [PTRN(sp), #-32]!
@@ -163,6 +166,7 @@ ENTRY(_rtld_bind_start)
 	ldp	q4, q5, [PTRN(sp)], #32
 	ldp	q2, q3, [PTRN(sp)], #32
 	ldp	q0, q1, [PTRN(sp)], #32
+	ldr	CAP(17), [PTRN(sp)], #CAP_WIDTH
 	ldp	CAP(8), CAP(9), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(6), CAP(7), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(4), CAP(5), [PTRN(sp)], #(CAP_WIDTH * 2)
@@ -173,7 +177,12 @@ ENTRY(_rtld_bind_start)
 	ldp	PTR(29), PTR(zr), [PTRN(sp)], #(PTR_WIDTH * 2)
 
 	 /* Restore link register saved by the plt code */
+#ifdef __CHERI_PURE_CAPABILITY__
+	ldp	czr, c30, [c17], #(PTR_WIDTH * 2)
+	msr	RCSP_EL0, c17
+#else
 	ldp	PTR(zr), PTR(30), [PTRN(sp)], #(PTR_WIDTH * 2)
+#endif
 
 	/* Call into the correct function */
 	br	PTR(16)
@@ -430,36 +439,129 @@ ENTRY(_rtld_tlsdesc_dynamic)
 END(_rtld_tlsdesc_dynamic)
 
 #ifdef __CHERI_PURE_CAPABILITY__
-.section	tramp_template,"a"
+.section	tramp_template_exe,"a"
+.p2align	4
+data_cap_exe:
+	.chericap	0
+get_rstk_exe:
+	.chericap	0
+dst_obj_exe:
+	.chericap	0
+
+	// If caller is Restricted, cache its rcsp in two places
+	// 1. The bottom of itself
+	// 2. The top of the Executive stack
+	gcperm	x10, c30
+	tbnz	x10, #1, 1f
+
+	mrs	c10, RCSP_EL0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
+	str	c10, [csp, #-CAP_WIDTH]
+1:	str	c30, [csp, #-(CAP_WIDTH * 2)]!
+
+	ldr	c10, data_cap_exe
+	blr	c10
+
+	// If caller is Restricted, restore to its saved rcsp
+	// at the top of the Executive stack
+	ldp	c30, c10, [csp], #(CAP_WIDTH * 2)
+	gcperm	x11, c30
+	tbnz	x11, #1, 1f
+
+	msr	RCSP_EL0, c10
+
+1:	retr	c30
+
+.section	tramp_template_res,"a"
 .p2align	4
 data_cap:
 	.chericap	0
-get_rstk_cap:
+get_rstk:
+	.chericap	0
+dst_obj:
 	.chericap	0
 
-	mrs	c9, RCSP_EL0
-	stp	c30, c9, [csp, #-(CAP_WIDTH * 2)]!
-	cbnz	x9, 1f
+	// If caller is Restricted, cache its rcsp in two places
+	// 1. The bottom of itself
+	// 2. The top of the Executive stack
+	gcperm	x10, c30
+	tbnz	x10, #1, 1f
 
-	str	c0, [csp, #-CAP_WIDTH]!
-	stp	c1, c2, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c3, c4, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c5, c6, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c7, c8, [csp, #-(CAP_WIDTH * 2)]!
+	mrs	c10, RCSP_EL0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
+	str	c10, [csp, #-CAP_WIDTH]
+1:	str	c30, [csp, #-(CAP_WIDTH * 2)]!
 
-	ldr	c9, get_rstk_cap
-	blr	c9
-	msr	RCSP_EL0, c0
+	// Callee is Restricted, so switch to its saved rcsp
+	// at the bottom of itself
+#define	KEY_ALIGNMENT 4
+#define	DEFAULT_FLAG_WIDTH 1
+7:	mrs	c10, ctpidr_el0				// c10 = table
+	gcflgs	x11, c10
+	lsr	x11, x11, #(56 - DEFAULT_FLAG_WIDTH - KEY_ALIGNMENT)
+	orr	x11, x11, #(((1 << DEFAULT_FLAG_WIDTH) - 1) << KEY_ALIGNMENT)	// c11 = flag
 
-	ldp	c7, c8, [csp], #(CAP_WIDTH * 2)
-	ldp	c5, c6, [csp], #(CAP_WIDTH * 2)
-	ldp	c3, c4, [csp], #(CAP_WIDTH * 2)
-	ldp	c1, c2, [csp], #(CAP_WIDTH * 2)
-	ldr	c0, [csp], #CAP_WIDTH
+	ldr	c12, dst_obj				// c12 = key
+	and	x14, x12, x11				// c14 = key & mask
+	add	c13, c10, x14, lsl #1			// c13 = cur = table + (key & mask)
 
-1:	ldr	c9, data_cap
-	blrr	c9
-	ldp	c30, c9, [csp], #(CAP_WIDTH * 2)
-	msr	RCSP_EL0, c9
-	retr	c30
+3:	ldp	c15, c16, [c13], #-(CAP_WIDTH * 2)	// k, v = *cur--
+	cmp	x12, x15				// if (k != key) goto 2f
+	b.ne	2f
+
+4:	ldr	c16, [c16, #-CAP_WIDTH]
+	msr	rcsp_el0, c16
+	ldr	c10, data_cap
+	blrr	c10
+
+	// If caller is Restricted, restore to its saved rcsp
+	// at the top of the Executive stack
+	ldp	c30, c10, [csp], #(CAP_WIDTH * 2)
+	gcperm	x11, c30
+	tbnz	x11, #1, 1f
+
+	msr	RCSP_EL0, c10
+
+1:	retr	c30
+
+2:	cbz	x15, 6f					// if (k == 0) goto miss
+	cmp	x13, x10				// if (cur >= table) goto 3b
+	b.hs	3b
+
+	add	c13, c10, x11, lsl #1			// cur = table + flag
+	add	c14, c10, x14, lsl #1			// base = table + (key & mask)
+
+5:	ldp	c15, c16, [c13], #-(CAP_WIDTH * 2)	// k, v = *cur--
+	cmp	x12, x15				// if (k == key) goto 5b
+	b.eq	4b
+
+	cmp	x15, #0					// if (k != 0 && cur > base) goto 5b
+	ccmp	x13, x14, #0, ne
+	b.hi	5b
+
+6:	stp	c8, c9, [csp, #-(1 * CAP_WIDTH * 2)]
+	stp	c6, c7, [csp, #-(2 * CAP_WIDTH * 2)]
+	stp	c4, c5, [csp, #-(3 * CAP_WIDTH * 2)]
+	stp	c2, c3, [csp, #-(4 * CAP_WIDTH * 2)]
+	stp	c0, c1, [csp, #-(5 * CAP_WIDTH * 2)]!
+
+	mov	c0, c10						// c0 = table
+	lsr	x1, x11, #(KEY_ALIGNMENT + DEFAULT_FLAG_WIDTH)	// x1 = real_flag
+	mov	c2, c12						// c2 = key
+	add	c3, c13, #(1 << 5)				// c3 = ++cur
+
+	ldr	c4, get_rstk
+	blr	c4
+
+	ldp	c8, c9, [csp, #(4 * CAP_WIDTH * 2)]
+	ldp	c6, c7, [csp, #(3 * CAP_WIDTH * 2)]
+	ldp	c4, c5, [csp, #(2 * CAP_WIDTH * 2)]
+	ldp	c2, c3, [csp, #(1 * CAP_WIDTH * 2)]
+	ldp	c0, c1, [csp], #(5 * CAP_WIDTH * 2)
+
+	b	7b
 #endif
