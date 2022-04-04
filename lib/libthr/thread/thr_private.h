@@ -600,7 +600,7 @@ struct pthread {
 	int			dlerror_seen;
 
 #ifdef __CHERI_PURE_CAPABILITY__
-	struct tramp_stks	trusted_stks;
+	struct tramp_stk_table	*tramp_stks;
 #endif
 };
 

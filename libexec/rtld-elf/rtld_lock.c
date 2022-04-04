@@ -339,14 +339,14 @@ lockdflt_init(void)
 {
 	int i;
 
-	deflockinfo.rtli_version  = RTLI_VERSION;
-	deflockinfo.lock_create   = make_rtld_function_pointer(def_lock_create);
-	deflockinfo.lock_destroy  = make_rtld_function_pointer(def_lock_destroy);
-	deflockinfo.rlock_acquire = make_rtld_function_pointer(def_rlock_acquire);
-	deflockinfo.wlock_acquire = make_rtld_function_pointer(def_wlock_acquire);
-	deflockinfo.lock_release  = make_rtld_function_pointer(def_lock_release);
-	deflockinfo.thread_set_flag = make_rtld_function_pointer(def_thread_set_flag);
-	deflockinfo.thread_clr_flag = make_rtld_function_pointer(def_thread_clr_flag);
+	deflockinfo.rtli_version    = RTLI_VERSION;
+	deflockinfo.lock_create     = make_rtld_local_function_pointer(def_lock_create);
+	deflockinfo.lock_destroy    = make_rtld_local_function_pointer(def_lock_destroy);
+	deflockinfo.rlock_acquire   = make_rtld_local_function_pointer(def_rlock_acquire);
+	deflockinfo.wlock_acquire   = make_rtld_local_function_pointer(def_wlock_acquire);
+	deflockinfo.lock_release    = make_rtld_local_function_pointer(def_lock_release);
+	deflockinfo.thread_set_flag = make_rtld_local_function_pointer(def_thread_set_flag);
+	deflockinfo.thread_clr_flag = make_rtld_local_function_pointer(def_thread_clr_flag);
 	deflockinfo.at_fork = NULL;
 	deflockinfo.dlerror_loc = def_dlerror_loc;
 	deflockinfo.dlerror_loc_sz = sizeof(def_dlerror_msg);
@@ -387,24 +387,11 @@ _rtld_thread_init(struct RtldLockInfo *pli)
 	SymLook req;
 	void *locks[RTLD_LOCK_CNT];
 	int flags, i, res;
+	struct RtldLockInfo tmplockinfo;
 
 	if (pli == NULL) {
 		lockinfo.rtli_version = RTLI_VERSION;
 	} else {
-
-#define wrap_with_trampoline(target) target = make_rtld_function_pointer(target)
-		wrap_with_trampoline(pli->lock_create);
-		wrap_with_trampoline(pli->lock_destroy);
-		wrap_with_trampoline(pli->rlock_acquire);
-		wrap_with_trampoline(pli->wlock_acquire);
-		wrap_with_trampoline(pli->lock_release);
-		wrap_with_trampoline(pli->thread_set_flag);
-		wrap_with_trampoline(pli->thread_clr_flag);
-		wrap_with_trampoline(pli->at_fork);
-		wrap_with_trampoline(pli->dlerror_loc);
-		wrap_with_trampoline(pli->dlerror_seen);
-#undef wrap_with_trampoline
-
 		lockinfo.rtli_version = RTLI_VERSION_ONE;
 		obj = obj_from_addr(pli->lock_create);
 		if (obj != NULL) {
@@ -413,6 +400,20 @@ _rtld_thread_init(struct RtldLockInfo *pli)
 			if (res == 0)
 				lockinfo.rtli_version = pli->rtli_version;
 		}
+		tmplockinfo = *pli;
+#define wrap_with_trampoline(target) target = ((void *)tramp_pgs_append((uintptr_t)(target), obj))
+		wrap_with_trampoline(tmplockinfo.lock_create);
+		wrap_with_trampoline(tmplockinfo.lock_destroy);
+		wrap_with_trampoline(tmplockinfo.rlock_acquire);
+		wrap_with_trampoline(tmplockinfo.wlock_acquire);
+		wrap_with_trampoline(tmplockinfo.lock_release);
+		wrap_with_trampoline(tmplockinfo.thread_set_flag);
+		wrap_with_trampoline(tmplockinfo.thread_clr_flag);
+		wrap_with_trampoline(tmplockinfo.at_fork);
+		wrap_with_trampoline(tmplockinfo.dlerror_loc);
+		wrap_with_trampoline(tmplockinfo.dlerror_seen);
+#undef wrap_with_trampoline
+		pli = &tmplockinfo;
 	}
 
 	/* disable all locking while this function is running */

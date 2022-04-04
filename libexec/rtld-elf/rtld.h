@@ -168,35 +168,6 @@ typedef struct Struct_Sym_Match_Result {
     int vcount;
 } Sym_Match_Result;
 
-#ifdef __CHERI_PURE_CAPABILITY__
-struct tramp {
-	uintptr_t data;
-	void *get_rstk_cap;
-	char padding;
-	const char code[] __attribute__((cheri_no_subobject_bounds));
-};
-
-struct tramp_pg {
-	struct tramp *cursor;		/* Points to start of unused space */
-	SLIST_ENTRY(tramp_pg) entries;	/* Points to start of next page */
-	struct tramp trampolines[];	/* Points to start of trampolines */
-};
-
-SLIST_HEAD(tramp_pgs, tramp_pg);
-
-struct tramp_stks_funcs {
-	struct tramp_stks *(*getter)(void);
-};
-
-struct tramp_stk {
-	void **cursor;
-	SLIST_ENTRY(tramp_stk) entries;
-	void *buf[];
-};
-
-SLIST_HEAD(tramp_stks, tramp_stk);
-#endif
-
 #define VER_INFO_HIDDEN	0x01
 
 /*
@@ -454,6 +425,28 @@ typedef struct Struct_SymLook {
     struct Struct_RtldLockState *lockstate;
 } SymLook;
 
+#ifdef __CHERI_PURE_CAPABILITY__
+struct tramp {
+	uintptr_t data;
+	const void *get_rstk_cap;
+	const void *dst_obj;
+	char padding;
+	const char code[] __attribute__((cheri_no_subobject_bounds));
+};
+
+struct tramp_pg {
+	struct tramp *cursor;		/* Points to start of unused space */
+	SLIST_ENTRY(tramp_pg) entries;	/* Points to start of next page */
+	struct tramp trampolines[];	/* Points to start of trampolines */
+};
+
+SLIST_HEAD(tramp_pgs, tramp_pg);
+
+struct tramp_delegate {
+	struct tramp_stk_table **(*get_rstk)(void);
+};
+#endif
+
 void _rtld_error(const char *, ...) __printflike(1, 2) __exported;
 void rtld_die(void) __dead2;
 #define rtld_fatal(args...)	do { _rtld_error(args); rtld_die(); } while (0)
@@ -515,7 +508,7 @@ __END_DECLS
 #endif
 
 #ifndef make_rtld_function_pointer
-#define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func)))
+#define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func), NULL))
 #endif
 #ifndef make_rtld_local_function_pointer
 #define make_rtld_local_function_pointer(target_func)	(&target_func)

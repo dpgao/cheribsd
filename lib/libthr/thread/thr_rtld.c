@@ -207,17 +207,17 @@ _thr_dlerror_seen(void)
 	return (&curthread->dlerror_seen);
 }
 
-static struct tramp_stks *
-_thr_rtld_get_trusted_stks(void)
+static struct tramp_stk_table **
+_thr_rtld_get_rstk(void)
 {
-	return &_get_curthread()->trusted_stks;
+	return &_get_curthread()->tramp_stks;
 }
 
 void
 _thr_rtld_init(void)
 {
 	struct RtldLockInfo	li;
-	struct tramp_stks_funcs fs;
+	struct tramp_delegate	delegate;
 	struct pthread		*curthread;
 	ucontext_t *uc;
 	long dummy = -1;
@@ -255,7 +255,7 @@ _thr_rtld_init(void)
 	li.dlerror_loc_sz = sizeof(curthread->dlerror_msg);
 	li.dlerror_seen = _thr_dlerror_seen;
 
-	fs.getter = _thr_rtld_get_trusted_stks;
+	delegate.get_rstk = _thr_rtld_get_rstk;
 
 	/*
 	 * Preresolve the symbols needed for the fork interposer.  We
@@ -278,7 +278,7 @@ _thr_rtld_init(void)
 	/* mask signals, also force to resolve __sys_sigprocmask PLT */
 	_thr_signal_block(curthread);
 	_rtld_thread_init(&li);
-	_rtld_tramp_stks_funcs_init(&fs);
+	_rtld_tramp_stks_funcs_init(&delegate, &curthread->tramp_stks);
 	_thr_signal_unblock(curthread);
 	_thr_signal_block_check_fast();
 	_thr_signal_block_setup(curthread);

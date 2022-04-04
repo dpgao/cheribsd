@@ -74,7 +74,7 @@ ENTRY(.rtld_start)
 	ldr	c2, [csp, #16]			/* Load obj_main */
 	mov	c0, c19				/* Restore aux */
 	mov	csp, c20			/* Restore the stack pointer */
-	br	c8				/* Jump to the entry point */
+	blrr	c8				/* Jump to the entry point */
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	mov	x19, x0		/* Put ps_strings in a callee-saved register */
 	mov	x20, sp		/* And the stack pointer */
@@ -101,11 +101,15 @@ END(.rtld_start)
  * x17 = &_rtld_bind_start
  */
 ENTRY(_rtld_bind_start)
+	// Need to manually maintain the invariance of the trampoline
+	// Since the caller is Restricted, cache its rcsp
 #ifdef __CHERI_PURE_CAPABILITY__
 	mrs	c9, RCSP_EL0
 	ldp	c10, c11, [c9], #(CAP_WIDTH * 2)
 	stp	c10, c11, [csp, #-(CAP_WIDTH * 2)]!
-	msr	RCSP_EL0, c9
+	gclim	x10, c9
+	scvalue c10, c9, x10
+	str	c9, [c10, #-CAP_WIDTH]
 #endif
 
 	mov	PTR(17), PTRN(sp)
@@ -175,6 +179,9 @@ ENTRY(_rtld_bind_start)
 	 /* Restore link register saved by the plt code */
 	ldp	PTR(zr), PTR(30), [PTRN(sp)], #(PTR_WIDTH * 2)
 
+#ifdef __CHERI_PURE_CAPABILITY__
+	msr	RCSP_EL0, c9
+#endif
 	/* Call into the correct function */
 	br	PTR(16)
 END(_rtld_bind_start)
@@ -430,36 +437,69 @@ ENTRY(_rtld_tlsdesc_dynamic)
 END(_rtld_tlsdesc_dynamic)
 
 #ifdef __CHERI_PURE_CAPABILITY__
+ENTRY(thr_table_getter_wrapper)
+	ldr	c9, thr_table_getter
+	str	c30, [csp, #-CAP_WIDTH]!
+	blrr	c9
+	ldr	c30, [csp], #CAP_WIDTH
+	retr	c30
+END(thr_table_getter_wrapper)
+
 .section	tramp_template,"a"
 .p2align	4
 data_cap:
 	.chericap	0
-get_rstk_cap:
+get_rstk:
+	.chericap	0
+dst_obj:
 	.chericap	0
 
+	// If caller is Restricted, cache its rcsp in two places
+	// 1. The bottom of itself
+	// 2. The top of the Executive stack
+	gcperm	x9, c30
+	tbnz	x9, #1, 1f
+
 	mrs	c9, RCSP_EL0
-	stp	c30, c9, [csp, #-(CAP_WIDTH * 2)]!
-	cbnz	x9, 1f
+	gclim	x10, c9
+	scvalue	c10, c9, x10
+	str	c9, [c10, #-CAP_WIDTH]
+	str	c9, [csp, #-CAP_WIDTH]!
+1:	str	c30, [csp, #-CAP_WIDTH]!
 
-	str	c0, [csp, #-CAP_WIDTH]!
-	stp	c1, c2, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c3, c4, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c5, c6, [csp, #-(CAP_WIDTH * 2)]!
+	// If callee is Restricted, switch to its cached rcsp
+	// at the bottom of itself
+	ldr	c9, data_cap
+	gcperm	x10, c9
+	tbnz	x10, #1, 1f
+
 	stp	c7, c8, [csp, #-(CAP_WIDTH * 2)]!
+	stp	c5, c6, [csp, #-(CAP_WIDTH * 2)]!
+	stp	c3, c4, [csp, #-(CAP_WIDTH * 2)]!
+	stp	c1, c2, [csp, #-(CAP_WIDTH * 2)]!
+	stp	c9, c0, [csp, #-(CAP_WIDTH * 2)]!
 
-	ldr	c9, get_rstk_cap
+	ldr	c0, dst_obj
+	ldr	c9, get_rstk
 	blr	c9
 	msr	RCSP_EL0, c0
 
-	ldp	c7, c8, [csp], #(CAP_WIDTH * 2)
-	ldp	c5, c6, [csp], #(CAP_WIDTH * 2)
-	ldp	c3, c4, [csp], #(CAP_WIDTH * 2)
+	ldp	c9, c0, [csp], #(CAP_WIDTH * 2)
 	ldp	c1, c2, [csp], #(CAP_WIDTH * 2)
-	ldr	c0, [csp], #CAP_WIDTH
+	ldp	c3, c4, [csp], #(CAP_WIDTH * 2)
+	ldp	c5, c6, [csp], #(CAP_WIDTH * 2)
+	ldp	c7, c8, [csp], #(CAP_WIDTH * 2)
 
-1:	ldr	c9, data_cap
-	blrr	c9
-	ldp	c30, c9, [csp], #(CAP_WIDTH * 2)
+1:	blrr	c9
+
+	// If caller is Restricted, restore to its cached rcsp
+	// at the top of the Executive stack
+	ldr	c30, [csp], #CAP_WIDTH
+	gcperm	x9, c30
+	tbnz	x9, #1, 1f
+
+	ldr	c9, [csp], #CAP_WIDTH
 	msr	RCSP_EL0, c9
-	retr	c30
+
+1:	retr	c30
 #endif

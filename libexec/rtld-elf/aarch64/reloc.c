@@ -40,9 +40,14 @@ __FBSDID("$FreeBSD$");
 #include "debug.h"
 #include "rtld.h"
 #include "rtld_printf.h"
+#include "rtld_libc.h"
 
 #if __has_feature(capabilities)
 #include "cheri_reloc.h"
+#endif
+
+#ifdef __CHERI_PURE_CAPABILITY__
+#include "uthash.h"
 #endif
 
 /*
@@ -167,97 +172,63 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 	}
 }
 
-static struct tramp_stks *
-def_tramp_stks_get(void)
-{
-	static struct tramp_stks def_stks = SLIST_HEAD_INITIALIZER(&def_stks);
-	return &def_stks;
+static struct tramp_stk_table {
+	uintptr_t *stk;
+	UT_hash_handle hh;
+	vaddr_t key;
+} *def_stk_table = NULL;
+
+static struct tramp_stk_table **
+def_get_rstk(void) {
+	return &def_stk_table;
 }
 
-static struct tramp_stks_funcs tramp_stks_fs = {
-	.getter = def_tramp_stks_get
+static struct tramp_delegate tramp_stks_fs = {
+	.get_rstk = def_get_rstk
 };
 
-void
-_rtld_tramp_stks_funcs_init(struct tramp_stks_funcs *fs)
+static uintptr_t
+get_rstk(const Obj_Entry *dst)
 {
-	fs->getter = make_rtld_function_pointer(fs->getter);
-	*fs->getter() = *tramp_stks_fs.getter();
-	tramp_stks_fs = *fs;
-}
+	struct tramp_stk_table **table = tramp_stks_fs.get_rstk();
+	struct tramp_stk_table *s;
+	vaddr_t key = cheri_getaddress(dst);
+	HASH_FIND(hh, *table, &key, sizeof(key), s);
 
-void *
-_rtld_get_rstk()
-{
-	size_t size = 0x40000 * getpagesize();
-	char *stk = mmap(NULL,
-			 size,
-			 PROT_READ | PROT_WRITE,
-			 MAP_ANON | MAP_PRIVATE | MAP_STACK,
-			 -1, 0);
-	return stk + size;
-}
-
-__unused static int
-tramp_stk_create(struct tramp_stk **out)
-{
-	struct tramp_stk *s = mmap(NULL,
-				   getpagesize(),
-				   PROT_READ | PROT_WRITE,
-				   MAP_ANON | MAP_PRIVATE,
-				   -1, 0);
-	if (s == MAP_FAILED)
-		rtld_die();
-	s->cursor = s->buf;
-	*out = s;
-	return 0;
-}
-
-__unused static int
-tramp_stk_push(void *data)
-{
-	if (0x40ac7a5d == (uintptr_t)data)
-		return 0;
-
-	struct tramp_stks *stks = tramp_stks_fs.getter();
-	int n_retry = 0;
-	struct tramp_stk *s = SLIST_FIRST(stks);
-	goto start;
-
-retry:
-	if (n_retry++)
-		rtld_die();
-	if (tramp_stk_create(&s))
-		rtld_die();
-	SLIST_INSERT_HEAD(stks, s, entries);
-
-start:
-	if (!s)
-		goto retry;
-
-	void **p = cheri_setbounds(s->cursor++, sizeof(*p));
-	if (!cheri_gettag(p))
-		goto retry;
-
-	*p = data;
-
-	return 0;
-}
-
-__unused static int
-tramp_stk_pop(void **out)
-{
-	struct tramp_stks *stks = tramp_stks_fs.getter();
-	struct tramp_stk *s = SLIST_FIRST(stks);
-	if (s->cursor == s->buf) {
-		SLIST_REMOVE_HEAD(stks, entries);
-		if (munmap(s, getpagesize())) {
+	if (!s) {
+		size_t size = 0x40000 * getpagesize();
+		char *stk = mmap(NULL,
+				 size,
+				 PROT_READ | PROT_WRITE,
+				 MAP_ANON | MAP_PRIVATE | MAP_STACK,
+				 -1, 0);
+		if (stk == MAP_FAILED)
 			rtld_die();
-		}
-		s = SLIST_FIRST(stks);
+		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
+		uintptr_t *w_stk = (uintptr_t *)stk;
+		w_stk[-1] = (uintptr_t)&w_stk[-1];
+
+		s = xmalloc(sizeof(*s));
+		s->key = key;
+		s->stk = w_stk;
+
+		HASH_ADD(hh, *table, key, sizeof(key), s);
 	}
-	*out = *(--s->cursor);
-	return 0;
+
+	return s->stk[-1];
+}
+
+struct tramp_stk_table **(*thr_table_getter)(void);
+struct tramp_stk_table **thr_table_getter_wrapper(void);
+
+void
+_rtld_tramp_stks_funcs_init(struct tramp_delegate *delegate, struct tramp_stk_table **table)
+{
+	thr_table_getter = delegate->get_rstk;
+	tramp_stks_fs.get_rstk = thr_table_getter_wrapper;
+
+	*table = def_stk_table;
+	def_stk_table = NULL;
 }
 
 static void *
@@ -289,12 +260,12 @@ tramp_pg_create(struct tramp_pg **out)
 }
 
 uintptr_t
-tramp_pgs_append(uintptr_t data)
+tramp_pgs_append(uintptr_t data, const Obj_Entry *dst)
 {
 	static struct tramp_pgs pgs = SLIST_HEAD_INITIALIZER(pgs);
 
 	extern const struct tramp __start_tramp_template;
-	const struct tramp *template = &__start_tramp_template;
+	static const struct tramp *template = &__start_tramp_template;
 
 	int n_retry = 0;
 	struct tramp_pg *pg = SLIST_FIRST(&pgs);
@@ -320,7 +291,8 @@ start:
 
 	memcpy(t, template, len);
 	t->data = data;
-	t->get_rstk_cap = _rtld_get_rstk;
+	t->get_rstk_cap = get_rstk;
+	t->dst_obj = dst;
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
 	return cheri_sealentry((uintptr_t)t->code);
 }
@@ -618,7 +590,7 @@ reloc_jmpslots(Obj_Entry *obj, int flags, RtldLockState *lockstate)
 			}
 			target = (uintptr_t)make_function_pointer(def, defobj);
 #ifdef __CHERI_PURE_CAPABILITY__
-			target = tramp_pgs_append(target);
+			target = tramp_pgs_append(target, defobj);
 #endif
 			reloc_jmpslot(where, target, defobj, obj,
 			    (const Elf_Rel *)rela);
@@ -674,7 +646,7 @@ reloc_iresolve_one(Obj_Entry *obj, const Elf_Rela *rela,
 	ptr = (uintptr_t)(obj->relocbase + rela->r_addend);
 #endif
 	lock_release(rtld_bind_lock, lockstate);
-	ptr = tramp_pgs_append(ptr);
+	ptr = tramp_pgs_append(ptr, obj);
 	target = call_ifunc_resolver(ptr);
 	wlock_acquire(rtld_bind_lock, lockstate);
 	*where = target;
