@@ -139,6 +139,13 @@ typedef struct Struct_Name_Entry {
     char   name[1];
 } Name_Entry;
 
+#ifdef __CHERI_PURE_CAPABILITY__
+struct Struct_Stack_Entry {
+    SLIST_ENTRY(Struct_Stack_Entry) link;
+    uintptr_t *stack;
+};
+#endif
+
 /* Lock object */
 typedef struct Struct_LockInfo {
     void *context;		/* Client context for creating locks */
@@ -168,35 +175,6 @@ typedef struct Struct_Sym_Match_Result {
     const Elf_Sym *vsymp;
     int vcount;
 } Sym_Match_Result;
-
-#ifdef __CHERI_PURE_CAPABILITY__
-struct tramp {
-	uintptr_t data;
-	void *get_rstk_cap;
-	char padding;
-	const char code[] __attribute__((cheri_no_subobject_bounds));
-};
-
-struct tramp_pg {
-	struct tramp *cursor;		/* Points to start of unused space */
-	SLIST_ENTRY(tramp_pg) entries;	/* Points to start of next page */
-	struct tramp trampolines[];	/* Points to start of trampolines */
-};
-
-SLIST_HEAD(tramp_pgs, tramp_pg);
-
-struct tramp_stks_funcs {
-	struct tramp_stks *(*getter)(void);
-};
-
-struct tramp_stk {
-	void **cursor;
-	SLIST_ENTRY(tramp_stk) entries;
-	void *buf[];
-};
-
-SLIST_HEAD(tramp_stks, tramp_stk);
-#endif
 
 #define VER_INFO_HIDDEN	0x01
 
@@ -319,6 +297,11 @@ typedef struct Struct_Obj_Entry {
 					       know about. */
     Ver_Entry *vertab;		/* Versions required /defined by this object */
     int vernum;			/* Number of entries in vertab */
+
+#ifdef __CHERI_PURE_CAPABILITY__
+    SLIST_HEAD(, Struct_Stack_Entry) stacks; /* List of object's per-thread stacks */
+    void *stackslock;
+#endif
 
     void* init_ptr;		/* Initialization function to call */
     void* fini_ptr;		/* Termination function to call */
@@ -455,6 +438,28 @@ typedef struct Struct_SymLook {
     struct Struct_RtldLockState *lockstate;
 } SymLook;
 
+#ifdef __CHERI_PURE_CAPABILITY__
+struct tramp {
+	uintptr_t data;
+	const void *get_rstk_cap;
+	const void *dst_obj;
+	char padding;
+	const char code[] __attribute__((cheri_no_subobject_bounds));
+};
+
+struct tramp_pg {
+	struct tramp *cursor;		/* Points to start of unused space */
+	SLIST_ENTRY(tramp_pg) entries;	/* Points to start of next page */
+	struct tramp trampolines[];	/* Points to start of trampolines */
+};
+
+SLIST_HEAD(tramp_pgs, tramp_pg);
+
+struct tramp_delegate {
+	void (*thr_thread_entry)(struct pthread *);
+};
+#endif
+
 void _rtld_error(const char *, ...) __printflike(1, 2) __exported;
 void rtld_die(void) __dead2;
 #define rtld_fatal(args...)	do { _rtld_error(args); rtld_die(); } while (0)
@@ -516,7 +521,7 @@ __END_DECLS
 #endif
 
 #ifndef make_rtld_function_pointer
-#define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func)))
+#define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func), NULL))
 #endif
 #ifndef make_rtld_local_function_pointer
 #define make_rtld_local_function_pointer(target_func)	(&target_func)

@@ -74,8 +74,11 @@ void _rtld_thread_init(struct RtldLockInfo *) __exported;
 void _rtld_atfork_pre(int *) __exported;
 void _rtld_atfork_post(int *) __exported;
 
-struct tramp_stks_funcs;
-void _rtld_tramp_stks_funcs_init(struct tramp_stks_funcs *) __exported;
+struct tramp_delegate;
+struct tramp_stk_table;
+void _rtld_tramp_stks_funcs_init(struct tramp_delegate *fs) __exported;
+
+void _rtld_thread_start(struct pthread *curthread);
 
 #endif /* IN_RTLD || PTHREAD_KERNEL */
 

@@ -1101,7 +1101,7 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
     *exit_proc = rtld_exit_ptr;
     *objp = obj_main;
 
-    return (func_ptr_type)tramp_pgs_append((uintptr_t)cheri_sealentry(obj_main->entry));
+    return (func_ptr_type)tramp_pgs_append((uintptr_t)cheri_sealentry(obj_main->entry), obj_main);
 }
 
 void *
@@ -1161,7 +1161,7 @@ _rtld_bind(Obj_Entry *obj, Elf_Size reloff)
      * that the trampoline needs.
      */
 #ifdef __CHERI_PURE_CAPABILITY__
-    target = tramp_pgs_append(target);
+    target = tramp_pgs_append(target, defobj);
 #endif
     target = reloc_jmpslot(where, target, defobj, obj, rel);
     lock_release(rtld_bind_lock, &lockstate);
@@ -3328,7 +3328,7 @@ objlist_call_init(Objlist *list, RtldLockState *lockstate)
 	if (reg != NULL) {
 		func_ptr_type exit_ptr = make_rtld_function_pointer(rtld_exit);
 		dbg("Calling __libc_atexit(rtld_exit (" PTR_FMT "))", (void*)exit_ptr);
-		reg = make_rtld_function_pointer(reg);
+		reg = (void *)tramp_pgs_append((uintptr_t)reg, obj_from_addr(reg));
 		reg(exit_ptr);
 		rtld_exit_ptr = make_rtld_function_pointer(rtld_nop_exit);
 	}

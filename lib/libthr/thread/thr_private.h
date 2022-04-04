@@ -490,7 +490,7 @@ struct pthread {
 
 	/*
 	 * Error variable used instead of errno. The function __error()
-	 * returns a pointer to this. 
+	 * returns a pointer to this.
 	 */
 	int			error;
 
@@ -522,7 +522,7 @@ struct pthread {
 #define	TMQ_NORM_PP		2	/* PRIO_PROTECT normal mutexes */
 #define	TMQ_NORM_PP_PRIV	3	/* PRIO_PROTECT normal priv */
 #define	TMQ_ROBUST_PP		4	/* PRIO_PROTECT robust mutexes */
-#define	TMQ_ROBUST_PP_PRIV	5	/* PRIO_PROTECT robust priv */	
+#define	TMQ_ROBUST_PP_PRIV	5	/* PRIO_PROTECT robust priv */
 #define	TMQ_NITEMS		6
 	struct mutex_queue	mq[TMQ_NITEMS];
 
@@ -598,10 +598,6 @@ struct pthread {
 	/* rtld thread-local dlerror message and seen control */
 	char			dlerror_msg[512];
 	int			dlerror_seen;
-
-#ifdef __CHERI_PURE_CAPABILITY__
-	struct tramp_stks	trusted_stks;
-#endif
 };
 
 #define THR_SHOULD_GC(thrd) 						\
