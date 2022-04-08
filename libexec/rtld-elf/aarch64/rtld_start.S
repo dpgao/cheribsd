@@ -104,15 +104,13 @@ ENTRY(_rtld_bind_start)
 	// Need to manually maintain the invariance of the trampoline
 	// Since the caller is Restricted, cache its rcsp
 #ifdef __CHERI_PURE_CAPABILITY__
-	mrs	c9, RCSP_EL0
-	ldp	c10, c11, [c9], #(CAP_WIDTH * 2)
-	stp	c10, c11, [csp, #-(CAP_WIDTH * 2)]!
-	gclim	x10, c9
-	scvalue c10, c9, x10
-	str	c9, [c10, #-CAP_WIDTH]
-#endif
-
+	mrs	c17, RCSP_EL0
+	gclim	x9, c17
+	scvalue c9, c17, x9
+	str	c17, [c9, #-CAP_WIDTH]
+#else
 	mov	PTR(17), PTRN(sp)
+#endif
 
 	/* Save frame pointer and SP */
 	stp	PTR(29), PTR(30), [PTRN(sp), #-(PTR_WIDTH * 2)]!
@@ -126,7 +124,7 @@ ENTRY(_rtld_bind_start)
 	stp	CAP(2), CAP(3), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 	stp	CAP(4), CAP(5), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 	stp	CAP(6), CAP(7), [PTRN(sp), #-(CAP_WIDTH * 2)]!
-	stp	CAP(8), CAP(9), [PTRN(sp), #-(CAP_WIDTH * 2)]!
+	stp	CAP(8), CAP(17), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 
 	/* Save any floating-point arguments */
 	stp	q0, q1, [PTRN(sp), #-32]!
@@ -167,7 +165,7 @@ ENTRY(_rtld_bind_start)
 	ldp	q4, q5, [PTRN(sp)], #32
 	ldp	q2, q3, [PTRN(sp)], #32
 	ldp	q0, q1, [PTRN(sp)], #32
-	ldp	CAP(8), CAP(9), [PTRN(sp)], #(CAP_WIDTH * 2)
+	ldp	CAP(8), CAP(17), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(6), CAP(7), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(4), CAP(5), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(2), CAP(3), [PTRN(sp)], #(CAP_WIDTH * 2)
@@ -177,11 +175,13 @@ ENTRY(_rtld_bind_start)
 	ldp	PTR(29), PTR(zr), [PTRN(sp)], #(PTR_WIDTH * 2)
 
 	 /* Restore link register saved by the plt code */
-	ldp	PTR(zr), PTR(30), [PTRN(sp)], #(PTR_WIDTH * 2)
-
 #ifdef __CHERI_PURE_CAPABILITY__
-	msr	RCSP_EL0, c9
+	ldp	czr, c30, [c17], #(PTR_WIDTH * 2)
+	msr	RCSP_EL0, c17
+#else
+	ldp	PTR(zr), PTR(30), [PTRN(sp)], #(PTR_WIDTH * 2)
 #endif
+
 	/* Call into the correct function */
 	br	PTR(16)
 END(_rtld_bind_start)
@@ -467,7 +467,7 @@ dst_obj:
 	str	c9, [csp, #-CAP_WIDTH]!
 1:	str	c30, [csp, #-CAP_WIDTH]!
 
-	// If callee is Restricted, switch to its cached rcsp
+	// If callee is Restricted, switch to its saved rcsp
 	// at the bottom of itself
 	ldr	c9, data_cap
 	gcperm	x10, c9
@@ -492,7 +492,7 @@ dst_obj:
 
 1:	blrr	c9
 
-	// If caller is Restricted, restore to its cached rcsp
+	// If caller is Restricted, restore to its saved rcsp
 	// at the top of the Executive stack
 	ldr	c30, [csp], #CAP_WIDTH
 	gcperm	x9, c30
