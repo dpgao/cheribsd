@@ -42,12 +42,10 @@ __FBSDID("$FreeBSD$");
 #include "rtld_printf.h"
 #include "rtld_libc.h"
 
+#include <stdalign.h>
+
 #if __has_feature(capabilities)
 #include "cheri_reloc.h"
-#endif
-
-#ifdef __CHERI_PURE_CAPABILITY__
-#include "uthash.h"
 #endif
 
 /*
@@ -173,9 +171,8 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 }
 
 static struct tramp_stk_table {
-	uintptr_t *stk;
-	UT_hash_handle hh;
 	vaddr_t key;
+	uintptr_t *stk;
 } *def_stk_table = NULL;
 
 static struct tramp_stk_table **
@@ -190,32 +187,87 @@ static struct tramp_delegate tramp_stks_fs = {
 static uintptr_t
 get_rstk(const Obj_Entry *dst)
 {
+
+#define	DEFAULT_FLAG_WIDTH 4
+#define DEFAULT_SIZE (1 << DEFAULT_FLAG_WIDTH)
+#define HASH_KEY(key, width) ((key) & ((DEFAULT_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
+
 	struct tramp_stk_table **table = tramp_stks_fs.get_rstk();
-	struct tramp_stk_table *s;
-	vaddr_t key = cheri_getaddress(dst);
-	HASH_FIND(hh, *table, &key, sizeof(key), s);
-
-	if (!s) {
-		size_t size = 0x40000 * getpagesize();
-		char *stk = mmap(NULL,
-				 size,
-				 PROT_READ | PROT_WRITE,
-				 MAP_ANON | MAP_PRIVATE | MAP_STACK,
-				 -1, 0);
-		if (stk == MAP_FAILED)
-			rtld_die();
-		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
-		uintptr_t *w_stk = (uintptr_t *)stk;
-		w_stk[-1] = (uintptr_t)&w_stk[-1];
-
-		s = xmalloc(sizeof(*s));
-		s->key = key;
-		s->stk = w_stk;
-
-		HASH_ADD(hh, *table, key, sizeof(key), s);
+	if (!*table) {
+		*table = xcalloc(DEFAULT_SIZE, sizeof(**table));
 	}
 
-	return s->stk[-1];
+	vaddr_t flags;
+	asm ("gcflgs	%0, %1" : "=r" (flags) : "C" (*table));
+	flags >>= 56;
+
+restart:;
+	vaddr_t key = cheri_getaddress(dst) / alignof(typeof(dst));
+	struct tramp_stk_table *const pivot = *table + HASH_KEY(key, flags);
+	struct tramp_stk_table *cur = pivot;
+
+	do
+		if (cur->key == key)
+			return cur->stk[-1];
+		else if (!cur->key)
+			goto miss;
+	while (--cur >= *table);
+
+	vaddr_t lim;
+	asm ("gclim	%0, %1" : "=r" (lim) : "C" (*table));
+	cur = cheri_setaddress(cur, lim);
+
+	while (--cur > pivot) {
+		if (cur->key == key)
+			return cur->stk[-1];
+		else if (!cur->key)
+			goto miss;
+	}
+
+	flags |= flags + 1;
+	size_t n_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+	struct tramp_stk_table *new_t = xcalloc(n_len, sizeof(*new_t));
+
+	// asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
+
+	for (cur = *table; cheri_getaddress(cur) < lim; ++cur) {
+		if (!cur->key)
+			continue;
+
+		size_t offset = HASH_KEY(key, flags);
+
+		// Must terminate
+		while (new_t[offset].key) {
+			offset = (offset - 1) & (n_len - 1);
+		}
+
+		new_t[offset] = (struct tramp_stk_table) {
+			.key = cur->key,
+			.stk = cur->stk
+		};
+	}
+
+	free(*table);
+	*table = new_t;
+	goto restart;
+
+miss:;
+	size_t size = 0x40000 * getpagesize();
+	char *stk = mmap(NULL,
+			 size,
+			 PROT_READ | PROT_WRITE,
+			 MAP_ANON | MAP_PRIVATE | MAP_STACK,
+			 -1, 0);
+	if (stk == MAP_FAILED)
+		rtld_die();
+	stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
+	uintptr_t *w_stk = (uintptr_t *)stk;
+	w_stk[-1] = (uintptr_t)&w_stk[-1];
+
+	cur->key = key;
+	cur->stk = w_stk;
+
+	return cur->stk[-1];
 }
 
 struct tramp_stk_table **(*thr_table_getter)(void);
