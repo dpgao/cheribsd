@@ -184,90 +184,68 @@ static struct tramp_delegate tramp_stks_fs = {
 	.get_rstk = def_get_rstk
 };
 
-static uintptr_t
-get_rstk(const Obj_Entry *dst)
+static void
+get_rstk(struct tramp_stk_table *table, vaddr_t flags, const Obj_Entry *dst, struct tramp_stk_table *cur)
 {
 
-#define	DEFAULT_FLAG_WIDTH 4
+#define	KEY_ALIGNMENT 4
+#define	DEFAULT_FLAG_WIDTH 8
 #define DEFAULT_SIZE (1 << DEFAULT_FLAG_WIDTH)
-#define HASH_KEY(key, width) ((key) & ((DEFAULT_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
+#define HASH_KEY(key, width) ((key >> KEY_ALIGNMENT) & ((DEFAULT_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
 
-	struct tramp_stk_table **table = tramp_stks_fs.get_rstk();
-	if (!*table) {
-		*table = xcalloc(DEFAULT_SIZE, sizeof(**table));
-	}
+	vaddr_t key = cheri_getaddress(dst);
 
-	vaddr_t flags;
-	asm ("gcflgs	%0, %1" : "=r" (flags) : "C" (*table));
-	flags >>= 56;
+	if (cur->key) {
+		assert(0);
 
-restart:;
-	vaddr_t key = cheri_getaddress(dst) / alignof(typeof(dst));
-	struct tramp_stk_table *const pivot = *table + HASH_KEY(key, flags);
-	struct tramp_stk_table *cur = pivot;
+		vaddr_t lim;
+		asm ("gclim	%0, %1" : "=r" (lim) : "C" (table));
 
-	do
-		if (cur->key == key)
-			return cur->stk[-1];
-		else if (!cur->key)
-			goto miss;
-	while (--cur >= *table);
+		flags >>= 4;
+		flags |= flags + 1;
+		size_t n_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+		struct tramp_stk_table *new_t = xcalloc(n_len, sizeof(*new_t));
 
-	vaddr_t lim;
-	asm ("gclim	%0, %1" : "=r" (lim) : "C" (*table));
-	cur = cheri_setaddress(cur, lim);
+		// asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
 
-	while (--cur > pivot) {
-		if (cur->key == key)
-			return cur->stk[-1];
-		else if (!cur->key)
-			goto miss;
-	}
+		for (cur = table; cheri_getaddress(cur) < lim; ++cur) {
+			if (!cur->key)
+				continue;
 
-	flags |= flags + 1;
-	size_t n_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
-	struct tramp_stk_table *new_t = xcalloc(n_len, sizeof(*new_t));
+			size_t offset = HASH_KEY(key, flags);
 
-	// asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
+			// Must terminate
+			while (new_t[offset].key) {
+				offset = (offset - 1) & (n_len - 1);
+			}
 
-	for (cur = *table; cheri_getaddress(cur) < lim; ++cur) {
-		if (!cur->key)
-			continue;
-
-		size_t offset = HASH_KEY(key, flags);
-
-		// Must terminate
-		while (new_t[offset].key) {
-			offset = (offset - 1) & (n_len - 1);
+			new_t[offset] = (struct tramp_stk_table) {
+				.key = cur->key,
+				.stk = cur->stk
+			};
 		}
 
-		new_t[offset] = (struct tramp_stk_table) {
-			.key = cur->key,
-			.stk = cur->stk
-		};
+		free(table);
+		table = new_t;
+		asm ("msr	ctpidr_el0, %0\n" :: "C" (table));
+
+	} else {
+
+		size_t size = 0x40000 * getpagesize();
+		char *stk = mmap(NULL,
+				 size,
+				 PROT_READ | PROT_WRITE,
+				 MAP_ANON | MAP_PRIVATE | MAP_STACK,
+				 -1, 0);
+		if (stk == MAP_FAILED)
+			rtld_die();
+		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
+		uintptr_t *w_stk = (uintptr_t *)stk;
+		w_stk[-1] = (uintptr_t)&w_stk[-1];
+
+		cur->key = key;
+		cur->stk = w_stk;
 	}
-
-	free(*table);
-	*table = new_t;
-	goto restart;
-
-miss:;
-	size_t size = 0x40000 * getpagesize();
-	char *stk = mmap(NULL,
-			 size,
-			 PROT_READ | PROT_WRITE,
-			 MAP_ANON | MAP_PRIVATE | MAP_STACK,
-			 -1, 0);
-	if (stk == MAP_FAILED)
-		rtld_die();
-	stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
-	uintptr_t *w_stk = (uintptr_t *)stk;
-	w_stk[-1] = (uintptr_t)&w_stk[-1];
-
-	cur->key = key;
-	cur->stk = w_stk;
-
-	return cur->stk[-1];
 }
 
 struct tramp_stk_table **(*thr_table_getter)(void);
@@ -316,8 +294,11 @@ tramp_pgs_append(uintptr_t data, const Obj_Entry *dst)
 {
 	static struct tramp_pgs pgs = SLIST_HEAD_INITIALIZER(pgs);
 
-	extern const struct tramp __start_tramp_template;
-	static const struct tramp *template = &__start_tramp_template;
+	extern const struct tramp __start_tramp_template_exe;
+	static const struct tramp *template_exe = &__start_tramp_template_exe;
+
+	extern const struct tramp __start_tramp_template_res;
+	static const struct tramp *templte_res = &__start_tramp_template_res;
 
 	int n_retry = 0;
 	struct tramp_pg *pg = SLIST_FIRST(&pgs);
@@ -334,6 +315,11 @@ start:
 	if (!pg)
 		goto retry;
 
+	const struct tramp *template;
+	if (cheri_getperm(data) & CHERI_PERM_EXECUTIVE)
+		template = template_exe;
+	else
+		template = templte_res;
 	size_t len = cheri_getlen(template);
 
 	struct tramp *t = __align_up(pg->cursor, _Alignof(typeof(*t)));
@@ -1084,6 +1070,7 @@ void
 allocate_initial_tls(Obj_Entry *objs)
 {
 
+	asm ("msr	ctpidr_el0, %0\n" :: "C" (xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table))));
 	/*
 	* Fix the size of the static TLS block by using the maximum
 	* offset allocated so far and adding a bit for dynamic modules to
@@ -1100,7 +1087,7 @@ __tls_get_addr(tls_index* ti)
 {
 	uintptr_t **dtvp;
 
-	asm ("mrs	%0, RCTPIDR_EL0" : "=C" (dtvp));
+	asm ("mrs	%0, rctpidr_el0" : "=C" (dtvp));
 	// dtvp = &_tcb_get()->tcb_dtv;
 	return (tls_get_addr_common(dtvp, ti->ti_module, ti->ti_offset));
 }
