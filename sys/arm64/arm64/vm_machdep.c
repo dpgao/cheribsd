@@ -248,6 +248,11 @@ cpu_set_upcall(struct thread *td, void (* __capability entry)(void *),
 		trapframe_set_elr(tf, (uintcap_t)entry);
 	else
 		hybridabi_thread_setregs(td, (unsigned long)(uintcap_t)entry);
+
+	tf->tf_lr = 0;
+	tf->tf_ddc = 0;
+	tf->tf_rsp = 0;
+	tf->tf_rddc = 0;
 #else
 	tf->tf_elr = (uintcap_t)entry;
 #endif
@@ -267,10 +272,14 @@ cpu_set_user_tls(struct thread *td, void * __capability tls_base)
 		/* 32bits arm stores the user TLS into tpidrro */
 		pcb->pcb_tpidrro_el0 = (uintcap_t)tls_base;
 		pcb->pcb_tpidr_el0 = (uintcap_t)tls_base;
+#if __has_feature(capabilities)
+		pcb->pcb_rctpidr_el0 = 0;
+#endif
 		if (td == curthread) {
 #if __has_feature(capabilities)
 			WRITE_SPECIALREG_CAP(ctpidrro_el0, tls_base);
 			WRITE_SPECIALREG_CAP(ctpidr_el0, tls_base);
+			WRITE_SPECIALREG_CAP(rctpidr_el0, NULL);
 #else
 			WRITE_SPECIALREG(tpidrro_el0, tls_base);
 			WRITE_SPECIALREG(tpidr_el0, tls_base);
@@ -278,9 +287,13 @@ cpu_set_user_tls(struct thread *td, void * __capability tls_base)
 		}
 	} else {
 		pcb->pcb_tpidr_el0 = (uintcap_t)tls_base;
+#if __has_feature(capabilities)
+		pcb->pcb_rctpidr_el0 = 0;
+#endif
 		if (td == curthread) {
 #if __has_feature(capabilities)
 			WRITE_SPECIALREG_CAP(ctpidr_el0, tls_base);
+			WRITE_SPECIALREG_CAP(rctpidr_el0, NULL);
 #else
 			WRITE_SPECIALREG(tpidr_el0, tls_base);
 #endif
