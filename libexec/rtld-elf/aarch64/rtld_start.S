@@ -437,14 +437,6 @@ ENTRY(_rtld_tlsdesc_dynamic)
 END(_rtld_tlsdesc_dynamic)
 
 #ifdef __CHERI_PURE_CAPABILITY__
-ENTRY(thr_table_getter_wrapper)
-	ldr	c9, thr_table_getter
-	str	c30, [csp, #-CAP_WIDTH]!
-	blrr	c9
-	ldr	c30, [csp], #CAP_WIDTH
-	retr	c30
-END(thr_table_getter_wrapper)
-
 .section	tramp_template_exe,"a"
 .p2align	4
 data_cap_exe:

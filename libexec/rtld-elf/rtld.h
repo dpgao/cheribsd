@@ -443,7 +443,7 @@ struct tramp_pg {
 SLIST_HEAD(tramp_pgs, tramp_pg);
 
 struct tramp_delegate {
-	struct tramp_stk_table **(*get_rstk)(void);
+	void (*thr_thread_entry)(struct pthread *);
 };
 #endif
 

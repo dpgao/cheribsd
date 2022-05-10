@@ -76,7 +76,9 @@ void _rtld_atfork_post(int *) __exported;
 
 struct tramp_delegate;
 struct tramp_stk_table;
-void _rtld_tramp_stks_funcs_init(struct tramp_delegate *fs, struct tramp_stk_table **table) __exported;
+void _rtld_tramp_stks_funcs_init(struct tramp_delegate *fs) __exported;
+
+void _rtld_thread_start(struct pthread *curthread);
 
 #endif /* IN_RTLD || PTHREAD_KERNEL */
 

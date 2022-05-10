@@ -170,18 +170,9 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 	}
 }
 
-static struct tramp_stk_table {
+struct tramp_stk_table {
 	vaddr_t key;
 	uintptr_t *stk;
-} *def_stk_table = NULL;
-
-static struct tramp_stk_table **
-def_get_rstk(void) {
-	return &def_stk_table;
-}
-
-static struct tramp_delegate tramp_stks_fs = {
-	.get_rstk = def_get_rstk
 };
 
 static void
@@ -248,17 +239,26 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, const Obj_Entry *dst, str
 	}
 }
 
-struct tramp_stk_table **(*thr_table_getter)(void);
-struct tramp_stk_table **thr_table_getter_wrapper(void);
+static struct tramp_delegate delegates;
+
+void _rtld_thread_start(struct pthread *curthread)
+{
+	void *tls;
+	asm ("mrs	%0, ctpidr_el0" : "=C" (tls));
+	asm ("msr	rctpidr_el0, %0" :: "C" (tls));
+
+	tls = xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table));
+	asm ("msr	ctpidr_el0, %0\n" :: "C" (tls));
+
+	uintptr_t wrapped_entry = tramp_pgs_append((uintptr_t)delegates.thr_thread_entry, obj_from_addr(delegates.thr_thread_entry));
+
+	((void (*)(struct pthread *curthread))wrapped_entry)(curthread);
+}
 
 void
-_rtld_tramp_stks_funcs_init(struct tramp_delegate *delegate, struct tramp_stk_table **table)
+_rtld_tramp_stks_funcs_init(struct tramp_delegate *delegate)
 {
-	thr_table_getter = delegate->get_rstk;
-	tramp_stks_fs.get_rstk = thr_table_getter_wrapper;
-
-	*table = def_stk_table;
-	def_stk_table = NULL;
+	delegates = *delegate;
 }
 
 static void *
