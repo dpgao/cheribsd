@@ -138,6 +138,13 @@ typedef struct Struct_Name_Entry {
     char   name[1];
 } Name_Entry;
 
+#ifdef __CHERI_PURE_CAPABILITY__
+struct Struct_Stack_Entry {
+    SLIST_ENTRY(Struct_Stack_Entry) link;
+    uintptr_t *stack;
+};
+#endif
+
 /* Lock object */
 typedef struct Struct_LockInfo {
     void *context;		/* Client context for creating locks */
@@ -289,6 +296,11 @@ typedef struct Struct_Obj_Entry {
 					       know about. */
     Ver_Entry *vertab;		/* Versions required /defined by this object */
     int vernum;			/* Number of entries in vertab */
+
+#ifdef __CHERI_PURE_CAPABILITY__
+    SLIST_HEAD(, Struct_Stack_Entry) stacks; /* List of object's per-thread stacks */
+    void *stackslock;
+#endif
 
     void* init_ptr;		/* Initialization function to call */
     void* fini_ptr;		/* Termination function to call */

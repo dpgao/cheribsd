@@ -176,49 +176,50 @@ struct tramp_stk_table {
 };
 
 static void
-get_rstk(struct tramp_stk_table *table, vaddr_t flags, const Obj_Entry *dst, struct tramp_stk_table *cur)
+get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tramp_stk_table *cur)
 {
 
 #define	KEY_ALIGNMENT 4
-#define	DEFAULT_FLAG_WIDTH 8
+#define	DEFAULT_FLAG_WIDTH 1
 #define DEFAULT_SIZE (1 << DEFAULT_FLAG_WIDTH)
 #define HASH_KEY(key, width) ((key >> KEY_ALIGNMENT) & ((DEFAULT_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
 
 	vaddr_t key = cheri_getaddress(dst);
 
 	if (cur->key) {
-		assert(0);
 
 		vaddr_t lim;
 		asm ("gclim	%0, %1" : "=r" (lim) : "C" (table));
 
-		flags >>= 4;
+		size_t old_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+
 		flags |= flags + 1;
-		size_t n_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
-		struct tramp_stk_table *new_t = xcalloc(n_len, sizeof(*new_t));
+		size_t new_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+		struct tramp_stk_table *new_t = xcalloc(new_len, sizeof(*new_t));
 
-		// asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
+		asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
 
-		for (cur = table; cheri_getaddress(cur) < lim; ++cur) {
-			if (!cur->key)
+		for (size_t i = 0; i < old_len; ++i) {
+			if (!table[i].key)
 				continue;
 
 			size_t offset = HASH_KEY(key, flags);
 
 			// Must terminate
 			while (new_t[offset].key) {
-				offset = (offset - 1) & (n_len - 1);
+				offset = (offset - 1) & (new_len - 1);
 			}
 
 			new_t[offset] = (struct tramp_stk_table) {
-				.key = cur->key,
-				.stk = cur->stk
+				.key = table[i].key,
+				.stk = table[i].stk
 			};
 		}
 
+		// XXX: Race condition!
 		free(table);
 		table = new_t;
-		asm ("msr	ctpidr_el0, %0\n" :: "C" (table));
+		asm ("msr	ctpidr_el0, %0" :: "C" (table));
 
 	} else {
 
@@ -236,6 +237,13 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, const Obj_Entry *dst, str
 
 		cur->key = key;
 		cur->stk = w_stk;
+
+		struct Struct_Stack_Entry *entry = xmalloc(sizeof(*entry));
+		entry->stack = w_stk;
+
+		lockinfo.wlock_acquire(dst->stackslock);
+		SLIST_INSERT_HEAD(&dst->stacks, entry, link);
+		lockinfo.lock_release(dst->stackslock);
 	}
 }
 
@@ -248,7 +256,7 @@ void _rtld_thread_start(struct pthread *curthread)
 	asm ("msr	rctpidr_el0, %0" :: "C" (tls));
 
 	tls = xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table));
-	asm ("msr	ctpidr_el0, %0\n" :: "C" (tls));
+	asm ("msr	ctpidr_el0, %0" :: "C" (tls));
 
 	uintptr_t wrapped_entry = tramp_pgs_append((uintptr_t)delegates.thr_thread_entry, obj_from_addr(delegates.thr_thread_entry));
 

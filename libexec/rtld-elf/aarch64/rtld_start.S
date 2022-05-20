@@ -105,9 +105,9 @@ ENTRY(_rtld_bind_start)
 	// Since the caller is Restricted, cache its rcsp
 #ifdef __CHERI_PURE_CAPABILITY__
 	mrs	c17, RCSP_EL0
-	gclim	x9, c17
-	scvalue c9, c17, x9
-	str	c17, [c9, #-CAP_WIDTH]
+	gclim	x10, c17
+	scvalue c10, c17, x10
+	str	c17, [c10, #-CAP_WIDTH]
 #else
 	mov	PTR(17), PTRN(sp)
 #endif
@@ -124,7 +124,8 @@ ENTRY(_rtld_bind_start)
 	stp	CAP(2), CAP(3), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 	stp	CAP(4), CAP(5), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 	stp	CAP(6), CAP(7), [PTRN(sp), #-(CAP_WIDTH * 2)]!
-	stp	CAP(8), CAP(17), [PTRN(sp), #-(CAP_WIDTH * 2)]!
+	stp	CAP(8), CAP(9), [PTRN(sp), #-(CAP_WIDTH * 2)]!
+	str	CAP(17), [PTRN(sp), #-CAP_WIDTH]!
 
 	/* Save any floating-point arguments */
 	stp	q0, q1, [PTRN(sp), #-32]!
@@ -165,7 +166,8 @@ ENTRY(_rtld_bind_start)
 	ldp	q4, q5, [PTRN(sp)], #32
 	ldp	q2, q3, [PTRN(sp)], #32
 	ldp	q0, q1, [PTRN(sp)], #32
-	ldp	CAP(8), CAP(17), [PTRN(sp)], #(CAP_WIDTH * 2)
+	ldr	CAP(17), [PTRN(sp)], #CAP_WIDTH
+	ldp	CAP(8), CAP(9), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(6), CAP(7), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(4), CAP(5), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(2), CAP(3), [PTRN(sp)], #(CAP_WIDTH * 2)
@@ -497,11 +499,11 @@ dst_obj:
 	// Callee is Restricted, so switch to its saved rcsp
 	// at the bottom of itself
 #define	KEY_ALIGNMENT 4
-#define	DEFAULT_FLAG_WIDTH 8
+#define	DEFAULT_FLAG_WIDTH 1
 7:	mrs	c10, ctpidr_el0				// c10 = table
 	gcflgs	x11, c10
 	lsr	x11, x11, #(56 - DEFAULT_FLAG_WIDTH - KEY_ALIGNMENT)
-	orr	x11, x11, #(0xff << KEY_ALIGNMENT)	// c11 = flag
+	orr	x11, x11, #(((1 << DEFAULT_FLAG_WIDTH) - 1) << KEY_ALIGNMENT)	// c11 = flag
 
 	ldr	c12, dst_obj				// c12 = key
 	and	x14, x12, x11				// c14 = key & mask
@@ -547,10 +549,10 @@ dst_obj:
 	stp	c2, c3, [csp, #-(CAP_WIDTH * 2)]!
 	stp	c0, c1, [csp, #-(CAP_WIDTH * 2)]!
 
-	mov	c0, c10					// c0 = table
-	mov	x1, x11					// c1 = flag
-	mov	c2, c12					// c2 = key
-	add	c3, c13, #(1 << 5)			// c3 = ++cur
+	mov	c0, c10						// c0 = table
+	lsr	x1, x11, #(KEY_ALIGNMENT + DEFAULT_FLAG_WIDTH)	// x1 = real_flag
+	mov	c2, c12						// c2 = key
+	add	c3, c13, #(1 << 5)				// c3 = ++cur
 
 	ldr	c4, get_rstk
 	blr	c4

@@ -591,6 +591,8 @@ obj_new(void)
     STAILQ_INIT(&obj->dldags);
     STAILQ_INIT(&obj->dagmembers);
     STAILQ_INIT(&obj->names);
+    SLIST_INIT(&obj->stacks);
+    obj->stackslock = lockinfo.lock_create();
     return obj;
 }
 
