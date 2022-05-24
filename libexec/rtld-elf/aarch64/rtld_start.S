@@ -203,7 +203,7 @@ ENTRY(_rtld_tlsdesc_static)
 	ldp	x0, x1, [c0, #16]
 	add	c0, c2, x0
 	scbnds	c0, c0, x1
-	ret
+	retr	c30
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	ldr	x0, [x0, #8]
 	ret
@@ -218,7 +218,7 @@ END(_rtld_tlsdesc_static)
 ENTRY(_rtld_tlsdesc_undef)
 #ifdef __CHERI_PURE_CAPABILITY__
 	ldr	x0, [c0, #16]
-	ret
+	retr	c30
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	str	x1, [sp, #-16]!
 	.cfi_adjust_cfa_offset	16
@@ -267,7 +267,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 	/* Restore registers and return */
 	ldp	 c3,  c4, [csp], #32
 	.cfi_adjust_cfa_offset 	-2 * 16
-	ret
+	retr	c30
 
 	/*
 	 * Slow path
@@ -337,7 +337,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 	/* Restore fast path registers and return */
 	ldp	 c3,  c4, [csp], #32
 	.cfi_adjust_cfa_offset 	-2 * 16
-	ret
+	retr	c30
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	/* Save registers used in fast path */
 	stp	x1,  x2, [sp, #(-2 * 16)]!
