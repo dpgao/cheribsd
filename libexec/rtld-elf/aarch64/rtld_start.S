@@ -543,11 +543,11 @@ dst_obj:
 	ccmp	x13, x14, #0, ne
 	b.hi	5b
 
-6:	stp	c8, c9, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c6, c7, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c4, c5, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c2, c3, [csp, #-(CAP_WIDTH * 2)]!
-	stp	c0, c1, [csp, #-(CAP_WIDTH * 2)]!
+6:	stp	c8, c9, [csp, #-(1 * CAP_WIDTH * 2)]
+	stp	c6, c7, [csp, #-(2 * CAP_WIDTH * 2)]
+	stp	c4, c5, [csp, #-(3 * CAP_WIDTH * 2)]
+	stp	c2, c3, [csp, #-(4 * CAP_WIDTH * 2)]
+	stp	c0, c1, [csp, #-(5 * CAP_WIDTH * 2)]!
 
 	mov	c0, c10						// c0 = table
 	lsr	x1, x11, #(KEY_ALIGNMENT + DEFAULT_FLAG_WIDTH)	// x1 = real_flag
@@ -557,11 +557,11 @@ dst_obj:
 	ldr	c4, get_rstk
 	blr	c4
 
-	ldp	c0, c1, [csp], #(CAP_WIDTH * 2)
-	ldp	c2, c3, [csp], #(CAP_WIDTH * 2)
-	ldp	c4, c5, [csp], #(CAP_WIDTH * 2)
-	ldp	c6, c7, [csp], #(CAP_WIDTH * 2)
-	ldp	c8, c9, [csp], #(CAP_WIDTH * 2)
+	ldp	c8, c9, [csp, #(4 * CAP_WIDTH * 2)]
+	ldp	c6, c7, [csp, #(3 * CAP_WIDTH * 2)]
+	ldp	c4, c5, [csp, #(2 * CAP_WIDTH * 2)]
+	ldp	c2, c3, [csp, #(1 * CAP_WIDTH * 2)]
+	ldp	c0, c1, [csp], #(5 * CAP_WIDTH * 2)
 
 	b	7b
 #endif
