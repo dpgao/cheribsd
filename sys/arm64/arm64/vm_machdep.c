@@ -250,9 +250,7 @@ cpu_set_upcall(struct thread *td, void (* __capability entry)(void *),
 		hybridabi_thread_setregs(td, (unsigned long)(uintcap_t)entry);
 
 	tf->tf_lr = 0;
-	tf->tf_ddc = 0;
 	tf->tf_rsp = 0;
-	tf->tf_rddc = 0;
 #else
 	tf->tf_elr = (uintcap_t)entry;
 #endif

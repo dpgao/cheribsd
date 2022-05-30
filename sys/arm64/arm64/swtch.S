@@ -92,13 +92,13 @@ ENTRY(cpu_throw)
 
 	/* Restore the registers */
 	ldr	PTR(5), [PTR(4), #PCB_SP]
-	ldp	PTR(6), PTR(7), [PTR(4), #PCB_TPIDR]
+	ldp	CAP(6), CAP(7), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
 	ldp	c8, c9, [PTR(4), #PCB_CID]
 #endif
 	mov	PTRN(sp), PTR(5)
-	msr	PTRN(tpidr_el0), PTR(6)
-	msr	PTRN(tpidrro_el0), PTR(7)
+	msr	CAPN(tpidr_el0), CAP(6)
+	msr	CAPN(tpidrro_el0), CAP(7)
 #if __has_feature(capabilities)
 	msr	cid_el0, c8
 	msr	rctpidr_el0, c9
@@ -136,14 +136,14 @@ ENTRY(cpu_switch)
 	stp	PTR(29), PTRN(lr), [PTR(4), #PCB_REGS + 29 * PTR_WIDTH]
 	/* And the old stack pointer */
 	mov	PTR(5), PTRN(sp)
-	mrs	PTR(6), PTRN(tpidr_el0)
-	mrs	PTR(7), PTRN(tpidrro_el0)
+	mrs	CAP(6), CAPN(tpidr_el0)
+	mrs	CAP(7), CAPN(tpidrro_el0)
 #if __has_feature(capabilities)
 	mrs	c8, cid_el0
 	mrs	c9, rctpidr_el0
 #endif
 	str	PTR(5), [PTR(4), #PCB_SP]
-	stp	PTR(6), PTR(7), [PTR(4), #PCB_TPIDR]
+	stp	CAP(6), CAP(7), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
 	stp	c8, c9, [PTR(4), #PCB_CID]
 #endif
@@ -197,13 +197,13 @@ ENTRY(cpu_switch)
 
 	/* Restore the registers */
 	ldr	PTR(5), [PTR(4), #PCB_SP]
-	ldp	PTR(6), PTR(7), [PTR(4), #PCB_TPIDR]
+	ldp	CAP(6), CAP(7), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
 	ldp	c8, c9, [PTR(4), #PCB_CID]
 #endif
 	mov	PTRN(sp), PTR(5)
-	msr	PTRN(tpidr_el0), PTR(6)
-	msr	PTRN(tpidrro_el0), PTR(7)
+	msr	CAPN(tpidr_el0), CAP(6)
+	msr	CAPN(tpidrro_el0), CAP(7)
 #if __has_feature(capabilities)
 	msr	cid_el0, c8
 	msr	rctpidr_el0, c9
@@ -242,7 +242,7 @@ ENTRY(fork_trampoline)
 #if __has_feature(capabilities)
 	ldp	CAP(10), CAP(12), [PTRN(sp), #TF_ELR]
 	ldp	CAP(13), CAP(14), [PTRN(sp), #TF_RSP]
-	ldr	x11, [PTRN(sp), #TF_SPSR]
+	ldr	w11, [PTRN(sp), #TF_SPSR]
 #else
 	ldp	CAP(10), CAP(11), [sp, #TF_ELR]
 #endif
@@ -290,14 +290,14 @@ ENTRY(savectx)
 	stp	PTR(29), PTRN(lr), [PTR(0), #PCB_REGS + 29 * PTR_WIDTH]
 	/* And the old stack pointer */
 	mov	PTR(5), PTRN(sp)
-	mrs	PTR(6), PTRN(tpidr_el0)
-	mrs	PTR(7), PTRN(tpidrro_el0)
+	mrs	CAP(6), CAPN(tpidr_el0)
+	mrs	CAP(7), CAPN(tpidrro_el0)
 #if __has_feature(capabilities)
 	mrs	c8, cid_el0
 	mrs	c9, rctpidr_el0
 #endif
 	str	PTR(5), [PTR(4), #PCB_SP]
-	stp	PTR(6), PTR(7), [PTR(4), #PCB_TPIDR]
+	stp	CAP(6), CAP(7), [PTR(4), #PCB_TPIDR]
 #if __has_feature(capabilities)
 	stp	c8, c9, [PTR(4), #PCB_CID]
 #endif
