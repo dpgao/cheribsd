@@ -102,7 +102,7 @@ END(.rtld_start)
  */
 ENTRY(_rtld_bind_start)
 	// Need to manually maintain the invariance of the trampoline
-	// Since the caller is Restricted, cache its rcsp
+	// Since the caller is Restricted, save its rcsp
 #ifdef __CHERI_PURE_CAPABILITY__
 	mrs	c17, RCSP_EL0
 	gclim	x10, c17
@@ -448,7 +448,7 @@ get_rstk_exe:
 dst_obj_exe:
 	.chericap	0
 
-	// If caller is Restricted, cache its rcsp in two places
+	// If caller is Restricted, save its rcsp in two places
 	// 1. The bottom of itself
 	// 2. The top of the Executive stack
 	gcperm	x10, c30
@@ -483,7 +483,7 @@ get_rstk:
 dst_obj:
 	.chericap	0
 
-	// If caller is Restricted, cache its rcsp in two places
+	// If caller is Restricted, save its rcsp in two places
 	// 1. The bottom of itself
 	// 2. The top of the Executive stack
 	gcperm	x10, c30
@@ -514,9 +514,17 @@ dst_obj:
 	b.ne	2f
 
 4:	ldr	c16, [c16, #-CAP_WIDTH]
-	msr	rcsp_el0, c16
+	msr	RCSP_EL0, c16
 	ldr	c10, data_cap
 	blrr	c10
+
+	// Callee's saved rcsp may have changed during the call
+	// (e.g. because it called into another compartment)
+	// We restore it to the correct value here
+	mrs	c10, RCSP_EL0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
 
 	// If caller is Restricted, restore to its saved rcsp
 	// at the top of the Executive stack
