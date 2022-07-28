@@ -337,13 +337,13 @@ start:
 		goto retry;
 
 	memcpy(t, template, len);
-	t->data = data;
-	t->get_rstk_cap = get_rstk;
-	t->dst_obj = dst;
-
 	// Arm64's i-cache and d-cache are not coherent. So we need to clean the d-cache
 	// and invalidate the i-cache. See https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/caches-and-self-modifying-code
 	__clear_cache(&t->padding, (char *)t + len);
+
+	t->data = data;
+	t->get_rstk_cap = get_rstk;
+	t->dst_obj = dst;
 
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
 	return cheri_sealentry((uintptr_t)t->code);

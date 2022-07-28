@@ -459,14 +459,17 @@ dst_obj_exe:
 	scvalue	c11, c10, x11
 	str	c10, [c11, #-CAP_WIDTH]
 	str	c10, [csp, #-CAP_WIDTH]
-1:	str	c30, [csp, #-(CAP_WIDTH * 2)]!
+1:	mov	c10, csp
+	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
 
 	ldr	c10, data_cap_exe
 	blr	c10
 
 	// If caller is Restricted, restore to its saved rcsp
 	// at the top of the Executive stack
-	ldp	c30, c10, [csp], #(CAP_WIDTH * 2)
+	ldr	c10, [csp]
+	mov	csp, c10
+	ldp	c30, c10, [csp, #-(CAP_WIDTH * 2)]
 	gcperm	x11, c30
 	tbnz	x11, #1, 1f
 
@@ -494,7 +497,8 @@ dst_obj:
 	scvalue	c11, c10, x11
 	str	c10, [c11, #-CAP_WIDTH]
 	str	c10, [csp, #-CAP_WIDTH]
-1:	str	c30, [csp, #-(CAP_WIDTH * 2)]!
+1:	mov	c10, csp
+	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
 
 	// Callee is Restricted, so switch to its saved rcsp
 	// at the bottom of itself
@@ -528,7 +532,9 @@ dst_obj:
 
 	// If caller is Restricted, restore to its saved rcsp
 	// at the top of the Executive stack
-	ldp	c30, c10, [csp], #(CAP_WIDTH * 2)
+	ldr	c10, [csp]
+	mov	csp, c10
+	ldp	c30, c10, [csp, #-(CAP_WIDTH * 2)]
 	gcperm	x11, c30
 	tbnz	x11, #1, 1f
 
