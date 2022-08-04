@@ -848,13 +848,21 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
     } else {				/* Main program already loaded. */
 	dbg("processing main program's program header");
 	assert(aux_info[AT_PHDR] != NULL);
+#ifdef COMPARTMENTALISATION
 	phdr = (const Elf_Phdr *) cheri_clearperm(aux_info[AT_PHDR]->a_un.a_ptr, CHERI_PERM_EXECUTIVE);
+#else
+	phdr = (const Elf_Phdr *) aux_info[AT_PHDR]->a_un.a_ptr;
+#endif
 	assert(aux_info[AT_PHNUM] != NULL);
 	phnum = aux_info[AT_PHNUM]->a_un.a_val;
 	assert(aux_info[AT_PHENT] != NULL);
 	assert(aux_info[AT_PHENT]->a_un.a_val == sizeof(Elf_Phdr));
 	assert(aux_info[AT_ENTRY] != NULL);
+#ifdef COMPARTMENTALISATION
 	imgentry = (dlfunc_t) cheri_clearperm(aux_info[AT_ENTRY]->a_un.a_ptr, CHERI_PERM_EXECUTIVE);
+#else
+	imgentry = (dlfunc_t) aux_info[AT_ENTRY]->a_un.a_ptr;
+#endif
 	dbg("Values from kernel:\n\tAT_PHDR=" PTR_FMT "\n"
 	    "\tAT_BASE=" PTR_FMT "\n\tAT_ENTRY=" PTR_FMT "\n",
 		phdr, aux_info[AT_BASE]->a_un.a_ptr, (const void *)imgentry);
@@ -1101,7 +1109,11 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
     *exit_proc = rtld_exit_ptr;
     *objp = obj_main;
 
+#ifdef COMPARTMENTALISATION
     return (func_ptr_type)tramp_pgs_append((uintptr_t)cheri_sealentry(obj_main->entry), obj_main);
+#else
+    return ((func_ptr_type)obj_main->entry);
+#endif
 }
 
 void *
@@ -1111,7 +1123,9 @@ rtld_resolve_ifunc(const Obj_Entry *obj, const Elf_Sym *def)
 	uintptr_t target;
 
 	ptr = (void *)make_function_pointer(def, obj);
+#ifdef COMPARTMENTALISATION
 	ptr = (void *)tramp_pgs_append((uintptr_t)ptr, obj);
+#endif
 	target = call_ifunc_resolver(ptr);
 	return ((void *)target);
 }
@@ -1161,7 +1175,7 @@ _rtld_bind(Obj_Entry *obj, Elf_Size reloff)
      * address. The value returned from reloc_jmpslot() is the value
      * that the trampoline needs.
      */
-#ifdef __CHERI_PURE_CAPABILITY__
+#ifdef COMPARTMENTALISATION
     target = tramp_pgs_append(target, defobj);
 #endif
     target = reloc_jmpslot(where, target, defobj, obj, rel);
@@ -3329,7 +3343,9 @@ objlist_call_init(Objlist *list, RtldLockState *lockstate)
 	if (reg != NULL) {
 		func_ptr_type exit_ptr = make_rtld_function_pointer(rtld_exit);
 		dbg("Calling __libc_atexit(rtld_exit (" PTR_FMT "))", (void*)exit_ptr);
+#ifdef COMPARTMENTALISATION
 		reg = (void *)tramp_pgs_append((uintptr_t)reg, obj_from_addr(reg));
+#endif
 		reg(exit_ptr);
 		rtld_exit_ptr = make_rtld_function_pointer(rtld_nop_exit);
 	}
@@ -4250,11 +4266,15 @@ do_dlsym(void *handle, const char *name, void *retaddr, const Ver_Entry *ve,
 	 */
 	if (ELF_ST_TYPE(def->st_info) == STT_FUNC) {
 	    sym = __DECONST(void*, make_function_pointer(def, defobj));
+#ifdef COMPARTMENTALISATION
 	    sym = (void *)tramp_pgs_append((uintptr_t)sym, defobj);
+#endif
 	    dbg("dlsym(%s) is function: " PTR_FMT, name, sym);
 	} else if (ELF_ST_TYPE(def->st_info) == STT_GNU_IFUNC) {
 	    sym = rtld_resolve_ifunc(defobj, def);
+#ifdef COMPARTMENTALISATION
 	    sym = (void *)tramp_pgs_append((uintptr_t)sym, defobj);
+#endif
 	    dbg("dlsym(%s) is ifunc. Resolved to: " PTR_FMT, name, sym);
 	} else if (ELF_ST_TYPE(def->st_info) == STT_TLS) {
 	    ti.ti_module = defobj->tlsindex;
@@ -4473,8 +4493,11 @@ rtld_fill_dl_phdr_info(const Obj_Entry *obj, struct dl_phdr_info *phdr_info)
 	phdr_info->dlpi_name = obj->path;
 	phdr_info->dlpi_phnum = obj->phsize / sizeof(obj->phdr[0]);
 	phdr_info->dlpi_tls_modid = obj->tlsindex;
+#ifdef COMPARTMENTALISATION
 	asm ("mrs	%0, RCTPIDR_EL0" : "=C" (dtvp));
-	// dtvp = &_tcb_get()->tcb_dtv;
+#else
+	dtvp = &_tcb_get()->tcb_dtv;
+#endif
 	phdr_info->dlpi_tls_data = (char *)tls_get_addr_slow(dtvp,
 	    obj->tlsindex, 0, true) + TLS_DTV_OFFSET;
 	phdr_info->dlpi_adds = obj_loads;

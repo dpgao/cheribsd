@@ -387,7 +387,9 @@ _rtld_thread_init(struct RtldLockInfo *pli)
 	SymLook req;
 	void *locks[RTLD_LOCK_CNT];
 	int flags, i, res;
+#ifdef COMPARTMENTALISATION
 	struct RtldLockInfo tmplockinfo;
+#endif
 
 	if (pli == NULL) {
 		lockinfo.rtli_version = RTLI_VERSION;
@@ -400,6 +402,7 @@ _rtld_thread_init(struct RtldLockInfo *pli)
 			if (res == 0)
 				lockinfo.rtli_version = pli->rtli_version;
 		}
+#ifdef COMPARTMENTALISATION
 		tmplockinfo = *pli;
 #define wrap_with_trampoline(target) target = ((void *)tramp_pgs_append((uintptr_t)(target), obj))
 		wrap_with_trampoline(tmplockinfo.lock_create);
@@ -414,6 +417,7 @@ _rtld_thread_init(struct RtldLockInfo *pli)
 		wrap_with_trampoline(tmplockinfo.dlerror_seen);
 #undef wrap_with_trampoline
 		pli = &tmplockinfo;
+#endif
 	}
 
 	/* disable all locking while this function is running */

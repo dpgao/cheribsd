@@ -139,10 +139,10 @@ typedef struct Struct_Name_Entry {
     char   name[1];
 } Name_Entry;
 
-#ifdef __CHERI_PURE_CAPABILITY__
+#ifdef COMPARTMENTALISATION
 struct Struct_Stack_Entry {
     SLIST_ENTRY(Struct_Stack_Entry) link;
-    uintptr_t *stack;
+    void *stack;
 };
 #endif
 
@@ -298,7 +298,7 @@ typedef struct Struct_Obj_Entry {
     Ver_Entry *vertab;		/* Versions required /defined by this object */
     int vernum;			/* Number of entries in vertab */
 
-#ifdef __CHERI_PURE_CAPABILITY__
+#ifdef COMPARTMENTALISATION
     SLIST_HEAD(, Struct_Stack_Entry) stacks; /* List of object's per-thread stacks */
     void *stackslock;
 #endif
@@ -438,7 +438,7 @@ typedef struct Struct_SymLook {
     struct Struct_RtldLockState *lockstate;
 } SymLook;
 
-#ifdef __CHERI_PURE_CAPABILITY__
+#ifdef COMPARTMENTALISATION
 struct tramp {
 	uintptr_t data;
 	const void *get_rstk_cap;
@@ -521,7 +521,11 @@ __END_DECLS
 #endif
 
 #ifndef make_rtld_function_pointer
+#ifdef COMPARTMENTALISATION
 #define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func), NULL))
+#else
+#define make_rtld_function_pointer(target_func)	(&target_func)
+#endif
 #endif
 #ifndef make_rtld_local_function_pointer
 #define make_rtld_local_function_pointer(target_func)	(&target_func)

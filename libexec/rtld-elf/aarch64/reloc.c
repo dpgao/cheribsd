@@ -40,9 +40,6 @@ __FBSDID("$FreeBSD$");
 #include "debug.h"
 #include "rtld.h"
 #include "rtld_printf.h"
-#include "rtld_libc.h"
-
-#include <stdalign.h>
 
 #if __has_feature(capabilities)
 #include "cheri_reloc.h"
@@ -169,10 +166,12 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 		    pcc, (Elf_Addr)(uintptr_t)relocbase, rela->r_addend);
 	}
 }
+#endif /* __CHERI_PURE_CAPABILITY__ */
 
+#ifdef COMPARTMENTALISATION
 struct tramp_stk_table {
 	vaddr_t key;
-	uintptr_t *stk;
+	void *stk;
 };
 
 static void
@@ -217,7 +216,6 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tr
 		}
 
 		// XXX: Race condition!
-		asm ("scflgs	%0, %1, %2" : "=C" (table) : "C" (table), "r" (0L));
 		free(table);
 		table = new_t;
 		asm ("msr	ctpidr_el0, %0" :: "C" (table));
@@ -233,14 +231,18 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tr
 		if (stk == MAP_FAILED)
 			rtld_die();
 		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
-		uintptr_t *w_stk = (uintptr_t *)stk;
-		w_stk[-1] = (uintptr_t)&w_stk[-1];
+		struct {
+			uint8_t generation;
+			uintptr_t top;
+		} *metadata = (void *)stk;
+		metadata[-1].generation = 0;
+		metadata[-1].top = (uintptr_t)&metadata[-1];
 
 		cur->key = key;
-		cur->stk = w_stk;
+		cur->stk = stk;
 
 		struct Struct_Stack_Entry *entry = xmalloc(sizeof(*entry));
-		entry->stack = w_stk;
+		entry->stack = stk;
 
 		lockinfo.wlock_acquire(dst->stackslock);
 		SLIST_INSERT_HEAD(&dst->stacks, entry, link);
@@ -348,7 +350,7 @@ start:
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
 	return cheri_sealentry((uintptr_t)t->code);
 }
-#endif /* __CHERI_PURE_CAPABILITY__ */
+#endif
 
 int
 do_copy_relocations(Obj_Entry *dstobj)
@@ -610,7 +612,7 @@ reloc_jmpslots(Obj_Entry *obj, int flags, RtldLockState *lockstate)
 				continue;
 			}
 			target = (uintptr_t)make_function_pointer(def, defobj);
-#ifdef __CHERI_PURE_CAPABILITY__
+#ifdef COMPARTMENTALISATION
 			target = tramp_pgs_append(target, defobj);
 #endif
 			reloc_jmpslot(where, target, defobj, obj,
@@ -667,7 +669,9 @@ reloc_iresolve_one(Obj_Entry *obj, const Elf_Rela *rela,
 	ptr = (uintptr_t)(obj->relocbase + rela->r_addend);
 #endif
 	lock_release(rtld_bind_lock, lockstate);
+#ifdef COMPARTMENTALISATION
 	ptr = tramp_pgs_append(ptr, obj);
+#endif
 	target = call_ifunc_resolver(ptr);
 	wlock_acquire(rtld_bind_lock, lockstate);
 	*where = target;
@@ -1007,7 +1011,9 @@ void
 allocate_initial_tls(Obj_Entry *objs)
 {
 
+#ifdef COMPARTMENTALISATION
 	asm ("msr	ctpidr_el0, %0\n" :: "C" (xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table))));
+#endif
 	/*
 	* Fix the size of the static TLS block by using the maximum
 	* offset allocated so far and adding a bit for dynamic modules to
@@ -1016,7 +1022,11 @@ allocate_initial_tls(Obj_Entry *objs)
 	tls_static_space = tls_last_offset + tls_last_size +
 	    RTLD_STATIC_TLS_EXTRA;
 
+#ifdef COMPARTMENTALISATION
 	asm ("msr	rctpidr_el0, %0\n" :: "C" (allocate_tls(objs, NULL, TLS_TCB_SIZE, TLS_TCB_ALIGN)));
+#else
+	_tcb_set(allocate_tls(objs, NULL, TLS_TCB_SIZE, TLS_TCB_ALIGN));
+#endif
 }
 
 void *
@@ -1024,7 +1034,10 @@ __tls_get_addr(tls_index* ti)
 {
 	uintptr_t **dtvp;
 
+#ifdef COMPARTMENTALISATION
 	asm ("mrs	%0, rctpidr_el0" : "=C" (dtvp));
-	// dtvp = &_tcb_get()->tcb_dtv;
+#else
+	dtvp = &_tcb_get()->tcb_dtv;
+#endif
 	return (tls_get_addr_common(dtvp, ti->ti_module, ti->ti_offset));
 }
