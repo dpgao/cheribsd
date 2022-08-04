@@ -439,6 +439,110 @@ ENTRY(_rtld_tlsdesc_dynamic)
 END(_rtld_tlsdesc_dynamic)
 
 #ifdef __CHERI_PURE_CAPABILITY__
+ENTRY(_rtld_setjmp)
+	/*
+	Before setjmp is called, the top of the Executive stack contains:
+		0.	Link to previous frame
+	When setjmp is called, the following is pushed to the Executive stack:
+		1.	Caller's stack
+		2.	Return address
+		3.	Link to 0
+	setjmp then calls _rtld_setjmp, which pushes the following:
+		4.	Ignored
+		5.	Link to 2
+	In _rtld_setjmp, we manipulate the stack content to the following:
+		-3.	Caller's stack
+		-2.	Return address
+		-1.	Link to 0
+		------------------------------
+		0.	Link to previous frame
+		1.	Caller's stack
+		2.	Return address
+		------------------------------
+		3.	Link to 0
+		4.	Ignored
+		------------------------------
+		5.	Link to 3
+	To do this, we shift everything from 0 to 4 by three positions.
+	 */
+#define	SETJMP_SHIFT 3
+	sub	c0, csp, #((SETJMP_SHIFT - 1) * CAP_WIDTH)
+
+	// Move 4 and adjust it's cursor
+	// Also adjust csp
+	ldr	c1, [csp], #-(SETJMP_SHIFT * CAP_WIDTH)
+	sub	c1, c1, #(SETJMP_SHIFT * CAP_WIDTH)
+	str	c1, [csp]
+
+	// Shift 3
+1:	ldr	c2, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
+	str	c2, [c0], #(CAP_WIDTH)
+	cmp	c0, c1
+	b.ne	1b
+
+	// Shift 2 and adjust it's cursor
+	ldr	c1, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
+	sub	c1, c1, #(SETJMP_SHIFT * CAP_WIDTH)
+	str	c1, [c0], #(CAP_WIDTH)
+
+	// Shift 1
+1:	ldr	c2, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
+	str	c2, [c0], #(CAP_WIDTH)
+	cmp	c0, c1
+	b.ne	1b
+
+	// Shift 0 and store -1, -2, and -3
+	ldr	c1, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
+	stp	c1, c0, [c0], #(CAP_WIDTH)
+	ldp	c1, c2, [c0, #-(SETJMP_SHIFT * CAP_WIDTH)]
+	stp	c1, c2, [c0, #(CAP_WIDTH)]
+
+	// Return sealed capability to added buffer
+	scbnds	c0, c0, #(SETJMP_SHIFT * CAP_WIDTH)
+	// TODO: seal	c0, c0
+
+	ret
+END(_rtld_setjmp)
+
+ENTRY(_rtld_longjmp)
+	/*
+	Before longjmp is called, the top of the Executive stack contains:
+		0.	Link to previous frame
+	When longjmp is called, the following is pushed to the Executive stack:
+		1.	Ignored
+		2.	Link to 0
+	longjmp then calls _rtld_longjmp, which pushes the following:
+		3.	Ignored
+		4.	Link to 2
+	In _rtld_longjmp, we manipulate the stack content to the following:
+		-n-2.	Link to previous frame
+		-n-1.	Supplied caller's stack
+		-n.	Supplied return address
+		------------------------------
+		...
+		------------------------------
+		0.	Link to previous frame
+		1.	Ignored
+		------------------------------
+		2.	Link to supplied Executive stack pointer (-n-2)
+		3.	Ignored
+		------------------------------
+		4.	Link to 2
+	When longjmp makes its final branch, it will go to the returning phase
+	of setjmp's trampoline, which unwinds to the frame and PC supplied by 2.
+	 */
+	ldr	c1, [csp]
+
+	// TODO: unseal	c0, c0
+	ldr	c2, [c0]
+	ldp	c3, c4, [c0, #(CAP_WIDTH)]
+
+	str	c2, [c1]
+	stp	c3, c4, [c2, #-(2 * CAP_WIDTH)]
+
+	ret
+END(_rtld_longjmp)
+
 .section	tramp_template_exe,"a"
 .p2align	4
 data_cap_exe:
