@@ -74,7 +74,11 @@ ENTRY(.rtld_start)
 	ldr	c2, [csp, #16]			/* Load obj_main */
 	mov	c0, c19				/* Restore aux */
 	mov	csp, c20			/* Restore the stack pointer */
+#ifdef COMPARTMENTALISATION
 	blrr	c8				/* Jump to the entry point */
+#else
+	br      c8                              /* Jump to the entry point */
+#endif
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	mov	x19, x0		/* Put ps_strings in a callee-saved register */
 	mov	x20, sp		/* And the stack pointer */
@@ -101,9 +105,13 @@ END(.rtld_start)
  * x17 = &_rtld_bind_start
  */
 ENTRY(_rtld_bind_start)
-	// Need to manually maintain the invariance of the trampoline
-	// Since the caller is Restricted, save its rcsp
-#ifdef __CHERI_PURE_CAPABILITY__
+#ifdef COMPARTMENTALISATION
+	/* Calls to _rtld_bind_start does not go through the trampoline
+	 * because _rtld_bind_start never returns, which would break the
+	 * trampoline's invariant.
+	 * But we still need to manually perform some of the trampoline's
+	 * work, i.e., saving the caller's stack pointer at its bottom.
+	 */
 	mrs	c17, RCSP_EL0
 	gclim	x10, c17
 	scvalue c10, c17, x10
@@ -113,11 +121,19 @@ ENTRY(_rtld_bind_start)
 #endif
 
 	/* Save frame pointer and SP */
+#ifdef COMPARTMENTALISATION
+	stp	PTR(29), PTR(17), [PTRN(sp), #-(PTR_WIDTH * 2)]!
+	mov	PTR(29), PTRN(sp)
+	.cfi_def_cfa PTR(29), (PTR_WIDTH * 2)
+	.cfi_offset PTR(30),  (PTR_WIDTH * 1)
+	.cfi_offset PTR(29), -(PTR_WIDTH * 2)
+#else
 	stp	PTR(29), PTR(30), [PTRN(sp), #-(PTR_WIDTH * 2)]!
 	mov	PTR(29), PTRN(sp)
 	.cfi_def_cfa PTR(29), (PTR_WIDTH * 2)
 	.cfi_offset PTR(30), -(PTR_WIDTH * 1)
 	.cfi_offset PTR(29), -(PTR_WIDTH * 2)
+#endif
 
 	/* Save the arguments */
 	stp	CAP(0), CAP(1), [PTRN(sp), #-(CAP_WIDTH * 2)]!
@@ -125,7 +141,6 @@ ENTRY(_rtld_bind_start)
 	stp	CAP(4), CAP(5), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 	stp	CAP(6), CAP(7), [PTRN(sp), #-(CAP_WIDTH * 2)]!
 	stp	CAP(8), CAP(9), [PTRN(sp), #-(CAP_WIDTH * 2)]!
-	str	CAP(17), [PTRN(sp), #-CAP_WIDTH]!
 
 	/* Save any floating-point arguments */
 	stp	q0, q1, [PTRN(sp), #-32]!
@@ -166,7 +181,6 @@ ENTRY(_rtld_bind_start)
 	ldp	q4, q5, [PTRN(sp)], #32
 	ldp	q2, q3, [PTRN(sp)], #32
 	ldp	q0, q1, [PTRN(sp)], #32
-	ldr	CAP(17), [PTRN(sp)], #CAP_WIDTH
 	ldp	CAP(8), CAP(9), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(6), CAP(7), [PTRN(sp)], #(CAP_WIDTH * 2)
 	ldp	CAP(4), CAP(5), [PTRN(sp)], #(CAP_WIDTH * 2)
@@ -174,10 +188,14 @@ ENTRY(_rtld_bind_start)
 	ldp	CAP(0), CAP(1), [PTRN(sp)], #(CAP_WIDTH * 2)
 
 	/* Restore frame pointer */
+#ifdef COMPARTMENTALISATION
+	ldp	PTR(29), PTR(17), [PTRN(sp)], #(PTR_WIDTH * 2)
+#else
 	ldp	PTR(29), PTR(zr), [PTRN(sp)], #(PTR_WIDTH * 2)
+#endif
 
 	 /* Restore link register saved by the plt code */
-#ifdef __CHERI_PURE_CAPABILITY__
+#ifdef COMPARTMENTALISATION
 	ldp	czr, c30, [c17], #(PTR_WIDTH * 2)
 	msr	RCSP_EL0, c17
 #else
@@ -203,7 +221,11 @@ ENTRY(_rtld_tlsdesc_static)
 	ldp	x0, x1, [c0, #16]
 	add	c0, c2, x0
 	scbnds	c0, c0, x1
+#ifdef COMPARTMENTALISATION
 	retr	c30
+#else
+	ret
+#endif
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	ldr	x0, [x0, #8]
 	ret
@@ -218,7 +240,11 @@ END(_rtld_tlsdesc_static)
 ENTRY(_rtld_tlsdesc_undef)
 #ifdef __CHERI_PURE_CAPABILITY__
 	ldr	x0, [c0, #16]
+#ifdef COMPARTMENTALISATION
 	retr	c30
+#else
+	ret
+#endif
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	str	x1, [sp, #-16]!
 	.cfi_adjust_cfa_offset	16
@@ -267,7 +293,11 @@ ENTRY(_rtld_tlsdesc_dynamic)
 	/* Restore registers and return */
 	ldp	 c3,  c4, [csp], #32
 	.cfi_adjust_cfa_offset 	-2 * 16
+#ifdef COMPARTMENTALISATION
 	retr	c30
+#else
+	ret
+#endif
 
 	/*
 	 * Slow path
@@ -337,7 +367,11 @@ ENTRY(_rtld_tlsdesc_dynamic)
 	/* Restore fast path registers and return */
 	ldp	 c3,  c4, [csp], #32
 	.cfi_adjust_cfa_offset 	-2 * 16
+#ifdef COMPARTMENTALISATION
 	retr	c30
+#else
+	ret
+#endif
 #else /* defined(__CHERI_PURE_CAPABILITY__) */
 	/* Save registers used in fast path */
 	stp	x1,  x2, [sp, #(-2 * 16)]!
@@ -438,7 +472,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 #endif /* defined(__CHERI_PURE_CAPABILITY__) */
 END(_rtld_tlsdesc_dynamic)
 
-#ifdef __CHERI_PURE_CAPABILITY__
+#ifdef COMPARTMENTALISATION
 ENTRY(_rtld_setjmp)
 	/*
 	Before setjmp is called, the top of the Executive stack contains:
@@ -448,8 +482,9 @@ ENTRY(_rtld_setjmp)
 		2.	Return address
 		3.	Link to 0
 	setjmp then calls _rtld_setjmp, which pushes the following:
-		4.	Ignored
-		5.	Link to 2
+		4.	Caller's stack
+		5.	Return address
+		6.	Link to 3
 	In _rtld_setjmp, we manipulate the stack content to the following:
 		-3.	Caller's stack
 		-2.	Return address
@@ -460,10 +495,11 @@ ENTRY(_rtld_setjmp)
 		2.	Return address
 		------------------------------
 		3.	Link to 0
-		4.	Ignored
+		4.	Caller's stack
+		5.	Return address
 		------------------------------
-		5.	Link to 3
-	To do this, we shift everything from 0 to 4 by three positions.
+		6.	Link to 3
+	To do this, we shift everything from 0 to 6 by three positions.
 	 */
 #define	SETJMP_SHIFT 3
 	sub	c0, csp, #((SETJMP_SHIFT - 1) * CAP_WIDTH)
@@ -509,11 +545,13 @@ ENTRY(_rtld_longjmp)
 	Before longjmp is called, the top of the Executive stack contains:
 		0.	Link to previous frame
 	When longjmp is called, the following is pushed to the Executive stack:
-		1.	Ignored
-		2.	Link to 0
+		1.	Caller's stack
+		2.	Return address
+		3.	Link to 0
 	longjmp then calls _rtld_longjmp, which pushes the following:
-		3.	Ignored
-		4.	Link to 2
+		4.	Caller's stack
+		5.	Return address
+		6.	Link to 2
 	In _rtld_longjmp, we manipulate the stack content to the following:
 		-n-2.	Link to previous frame
 		-n-1.	Supplied caller's stack
@@ -522,12 +560,14 @@ ENTRY(_rtld_longjmp)
 		...
 		------------------------------
 		0.	Link to previous frame
-		1.	Ignored
+		1.	Caller's stack
+		2.	Return address
 		------------------------------
-		2.	Link to supplied Executive stack pointer (-n-2)
-		3.	Ignored
+		3.	Link to supplied Executive stack pointer (-n-2)
+		4.	Caller's stack
+		5.	Return address
 		------------------------------
-		4.	Link to 2
+		6.	Link to 3
 	When longjmp makes its final branch, it will go to the returning phase
 	of setjmp's trampoline, which unwinds to the frame and PC supplied by 2.
 	 */
@@ -549,7 +589,6 @@ data_cap_exe:
 	.chericap	0
 get_rstk_exe:
 	.chericap	0
-dst_obj_exe:
 	.chericap	0
 
 	// If caller is Restricted, save its rcsp in two places
