@@ -171,7 +171,7 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 #ifdef COMPARTMENTALISATION
 struct tramp_stk_table {
 	vaddr_t key;
-	uintptr_t *stk;
+	void *stk;
 };
 
 static void
@@ -231,14 +231,18 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tr
 		if (stk == MAP_FAILED)
 			rtld_die();
 		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
-		uintptr_t *w_stk = (uintptr_t *)stk;
-		w_stk[-1] = (uintptr_t)&w_stk[-1];
+		struct {
+			uint8_t generation;
+			uintptr_t top;
+		} *metadata = (void *)stk;
+		metadata[-1].generation = 0;
+		metadata[-1].top = (uintptr_t)&metadata[-1];
 
 		cur->key = key;
-		cur->stk = w_stk;
+		cur->stk = stk;
 
 		struct Struct_Stack_Entry *entry = xmalloc(sizeof(*entry));
-		entry->stack = w_stk;
+		entry->stack = stk;
 
 		lockinfo.wlock_acquire(dst->stackslock);
 		SLIST_INSERT_HEAD(&dst->stacks, entry, link);

@@ -142,7 +142,7 @@ typedef struct Struct_Name_Entry {
 #ifdef COMPARTMENTALISATION
 struct Struct_Stack_Entry {
     SLIST_ENTRY(Struct_Stack_Entry) link;
-    uintptr_t *stack;
+    void *stack;
 };
 #endif
 

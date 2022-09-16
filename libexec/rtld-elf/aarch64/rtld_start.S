@@ -486,54 +486,52 @@ ENTRY(_rtld_setjmp)
 		5.	Return address
 		6.	Link to 3
 	In _rtld_setjmp, we manipulate the stack content to the following:
-		-3.	Caller's stack
-		-2.	Return address
-		-1.	Link to 0
-		------------------------------
+		-3.	Link to 0
+		-2.	Copy of 1
+		-1.	Copy of 2
 		0.	Link to previous frame
+		------------------------------
 		1.	Caller's stack
 		2.	Return address
-		------------------------------
 		3.	Link to 0
+		------------------------------
 		4.	Caller's stack
 		5.	Return address
-		------------------------------
 		6.	Link to 3
-	To do this, we shift everything from 0 to 6 by three positions.
+	To do this, we shift everything from 0 to 6 by 3 positions.
 	 */
-#define	SETJMP_SHIFT 3
-	sub	c0, csp, #((SETJMP_SHIFT - 1) * CAP_WIDTH)
 
-	// Move 4 and adjust it's cursor
-	// Also adjust csp
+#define	SETJMP_SHIFT	3
+	// Move 6 and adjust it's cursor.
+	// Also adjust csp.
 	ldr	c1, [csp], #-(SETJMP_SHIFT * CAP_WIDTH)
 	sub	c1, c1, #(SETJMP_SHIFT * CAP_WIDTH)
 	str	c1, [csp]
 
-	// Shift 3
-1:	ldr	c2, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
-	str	c2, [c0], #(CAP_WIDTH)
-	cmp	c0, c1
-	b.ne	1b
+	add	c0, csp, #(CAP_WIDTH)
 
-	// Shift 2 and adjust it's cursor
+	// Shift 4-5.
+	ldp	c1, c2, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
+	stp	c1, c2, [c0], #(2 * CAP_WIDTH)
+
+	// Shift 3 and adjust it's cursor.
 	ldr	c1, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
 	sub	c1, c1, #(SETJMP_SHIFT * CAP_WIDTH)
 	str	c1, [c0], #(CAP_WIDTH)
 
-	// Shift 1
-1:	ldr	c2, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
-	str	c2, [c0], #(CAP_WIDTH)
-	cmp	c0, c1
-	b.ne	1b
+	// Shift 1-2.
+	ldp	c1, c2, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
+	stp	c1, c2, [c0], #(2 * CAP_WIDTH)
 
-	// Shift 0 and store -1, -2, and -3
+	// Shift 0 and store -3.
 	ldr	c1, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
-	stp	c1, c0, [c0], #(CAP_WIDTH)
-	ldp	c1, c2, [c0, #-(SETJMP_SHIFT * CAP_WIDTH)]
-	stp	c1, c2, [c0, #(CAP_WIDTH)]
+	str	c0, [c0, #(SETJMP_SHIFT * CAP_WIDTH)]
+	str	c1, [c0], #(CAP_WIDTH)
 
-	// Return sealed capability to added buffer
+	// Store -1, -2.
+	ldp	c1, c2, [c0, #-(SETJMP_SHIFT * CAP_WIDTH)]
+	stp	c1, c2, [c0]
+
 	scbnds	c0, c0, #(SETJMP_SHIFT * CAP_WIDTH)
 	// TODO: seal	c0, c0
 
@@ -554,40 +552,79 @@ ENTRY(_rtld_longjmp)
 		6.	Link to 2
 	In _rtld_longjmp, we manipulate the stack content to the following:
 		-n-2.	Link to previous frame
+		------------------------------
 		-n-1.	Supplied caller's stack
 		-n.	Supplied return address
-		------------------------------
 		...
-		------------------------------
 		0.	Link to previous frame
+		------------------------------
 		1.	Caller's stack
 		2.	Return address
-		------------------------------
 		3.	Link to supplied Executive stack pointer (-n-2)
+		------------------------------
 		4.	Caller's stack
 		5.	Return address
-		------------------------------
 		6.	Link to 3
 	When longjmp makes its final branch, it will go to the returning phase
-	of setjmp's trampoline, which unwinds to the frame and PC supplied by 2.
+	of setjmp's trampoline, which unwinds to the frame and PC supplied by 3.
 	 */
-	ldr	c1, [csp]
 
-	// TODO: unseal	c0, c0
-	ldr	c2, [c0]
-	ldp	c3, c4, [c0, #(CAP_WIDTH)]
+	// Check that the supplied buffer is on the current Executive stack.
+	// c0: Supplied buffer
+	chkssu	c0, c0, csp
+	b.pl	1f
 
-	str	c2, [c1]
-	stp	c3, c4, [c2, #-(2 * CAP_WIDTH)]
+	// Check that the supplied buffer is below the top of the stack.
+	cmp	sp, x0
+	b.hs	1f
+
+	// Load the link from the supplied buffer.
+	ldr	c2, [c0, #(2 * CAP_WIDTH)]
+
+	// Compare its generation counter with that of the capability to the
+	// supplied buffer.
+	gcflgs	x1, c0
+	gcflgs	x3, c2
+	cmp	x1, x3
+	b.ne	1f
+
+	// All sanity checks have passed.
+	// Locate the frame of the supplied buffer.
+	// c1: Frame of the supplied buffer
+2:	mov	c1, c2
+	ldr	c2, [c2]
+	cmp	x2, x0
+	b.lo	2b
+
+	// Get the previous frame.
+	// c2: Previous frame
+	ldr	c2, [csp]
+
+	// Unwind the frames.
+	mov	c3, c2
+4:	cmp	c3, c1
+	b.eq	3f
+
+	// Enforce security policy here for each frame being unwinded.
+
+	ldr	c3, [c3]
+	b	4b
+
+3:	ldp	c3, c4, [c0]
+
+	str	c1, [c2]
+	stp	c3, c4, [c1, #-(2 * CAP_WIDTH)]
 
 	ret
+
+	// TODO: Abort
+1:	ret
 END(_rtld_longjmp)
 
 .section	tramp_template_exe,"a"
 .p2align	4
 data_cap_exe:
 	.chericap	0
-get_rstk_exe:
 	.chericap	0
 	.chericap	0
 
