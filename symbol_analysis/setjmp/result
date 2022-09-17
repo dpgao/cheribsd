@@ -1,0 +1,420 @@
+/var/cache/pkg/44bsd-rdist-20001111_2~c1d4ad663f.pkg
+/var/cache/pkg/acltool-1.16.2~be0a3e1584.pkg
+
+*	alpine-2.25~00a0f61042.pkg
+	*	Internal logic
+	*	Signal handling (imap-uw)
+
+/var/cache/pkg/android-tools-fastboot-29.0.6_1~bbbd903ce2.pkg
+
+*	apngasm-2.91~6f0eb0b366.pkg
+	*	libpng support
+
+/var/cache/pkg/arduino-ctags-5.8_1~e29fae87f3.pkg
+
+*	autossh-1.4g~490f745bad.pkg
+	*	Signal handling
+
+/var/cache/pkg/avenger-0.8.5~e08d6ff6cf.pkg
+/var/cache/pkg/avr-gdb-7.3.1_6~7876e7ac66.pkg
+
+*	bam-0.4.0~84e27cf087.pkg
+	*	Exception mechanism for Lua interpreter
+
+*	bioawk-1.0.7~415f960c4d.pkg
+	*	Control-flow for awk interpreter
+
+/var/cache/pkg/boost-jam-1.72.0~8b0a2bddc2.pkg
+/var/cache/pkg/bsdtris-1.1_2~362c25815c.pkg
+
+*	buddy-2.4_2~47e977e03a.pkg
+	*	Exception mechanism for out-of-memory recovery
+
+*	bvi-1.4.0~f35cc6bebf.pkg
+	*	Signal handling
+
+/var/cache/pkg/bwbasic-3.20~d6467da8bc.pkg
+
+*	calc-2.14.1.0~31736b0f5e.pkg
+	*	Throw errors to the library's caller
+	*	Signal handling
+
+*	cccc-3.1.6~900ecff349.pkg
+	*	Parser implementation
+
+/var/cache/pkg/chicken5-5.3.0~fc73984175.pkg
+/var/cache/pkg/clips-6.30~ff80204430.pkg
+/var/cache/pkg/coin-or-asl-2.0.0~8e362fc7ed.pkg
+
+*	coreutils-8.32~54c08cba83.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/cpmtools-1.1_1~4ff210fb3f.pkg
+/var/cache/pkg/crashme-2.4_1~935ba3e6cd.pkg
+/var/cache/pkg/crw-1.03_3~854e0e99bf.pkg
+
+*	cscope-15.9~eb6dfcb512.pkg
+	*	Regex engine implementation
+	*	Signal handling (user interrupt)
+
+*	ctags-5.8~575440a835.pkg
+	*	Parser implementation
+
+/var/cache/pkg/cvs-1.20120905_7~ad6daae62e.pkg
+/var/cache/pkg/cvs+ipv6-1.20120905_3~a46ae7afb5.pkg
+
+*	dash-0.5.11.5~9d7ba1a984.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/datadraw-3.1.1_1~679d1214fc.pkg
+/var/cache/pkg/deco-misc-3.9_5~e72500b2b8.pkg
+
+*	dgd-1.4.23~a0f285688c.pkg
+	*	Exception mechanism (replaced with C++ exceptions now)
+
+/var/cache/pkg/dma-0.13.20220128_1,1~5e956879e8.pkg
+/var/cache/pkg/doinkd-0.02~a6db72facf.pkg
+/var/cache/pkg/duktape-2.7.0~d271e35956.pkg
+/var/cache/pkg/dwz-0.14~030f7d55b5.pkg
+/var/cache/pkg/eclat-2.1~3ba5339203.pkg
+
+*	eggdrop-1.9.2~5f845fa055.pkg
+	*	Signal handling (timeout implementation)
+
+*	enscript-a4-1.6.6_3~f77e23dde0.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/enscript-letter-1.6.6_3~04489d858d.pkg
+/var/cache/pkg/enscript-letterdj-1.6.6_3~809d8158fc.pkg
+/var/cache/pkg/enygma-1.04~7fbccee1fb.pkg
+/var/cache/pkg/es-0.9.b1_6~07b0a893a1.pkg
+/var/cache/pkg/fastresolve-2.10_6~36104e02cc.pkg
+
+*	fetchmail-6.4.28~6f400d4efb.pkg
+	*	Signal handling
+
+/var/cache/pkg/fixrtf-0.1.20060303_3~76d299779a.pkg
+
+*	flite-2.1~3730c915fe.pkg
+	*	Throws errors the library's caller
+
+/var/cache/pkg/frikqcc-2.6~78b6809f93.pkg
+/var/cache/pkg/gettext-tools-0.21~252e1fe3f1.pkg
+
+*	gexpr-2.0.2_1~a13b04b6f5.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/giftool-1.0~586db37453.pkg
+/var/cache/pkg/gkermit-1.0~fc1f173c3a.pkg
+/var/cache/pkg/global-6.6.8~0af47a3e87.pkg
+
+*	gnucap-2013.04.23~eaff839ead.pkg
+	*	Signal handling
+
+/var/cache/pkg/gnuls-8.30~520031488f.pkg
+/var/cache/pkg/gopher-3.0.6_1~a1c0e6002a.pkg
+/var/cache/pkg/gplcver-2.12.a~421903a40b.pkg
+
+*	greyfix-0.4.0_1~464f6fc92a.pkg
+	*	Exception mechanism
+
+*	guetzli-1.0.1_5~05ee6cd543.pkg
+	*	libpng support
+
+/var/cache/pkg/heirloom-mailx-12.4_10~0017b5e358.pkg
+/var/cache/pkg/hercules-3.13~e15e304138.pkg
+
+*	icoutils-0.32.3~a2ba4d7d0c.pkg
+	*	libpng support
+
+*	imap-uw-2007f_1,1~751f7fadb4.pkg
+	*	Signal handling
+
+*	iperf3-3.11~788458371e.pkg
+	*	Signal handling
+
+/var/cache/pkg/ipv6toolkit-2.0~b9fd5ac015.pkg
+/var/cache/pkg/ja-Wnn6-lib-2000.9.1_2~4267b7f9c2.pkg
+/var/cache/pkg/ja-Wnn7-lib-2001.10.17_3~2821c26455.pkg
+/var/cache/pkg/ja-cdrom2-1996.06.16_1~3bc74aecc9.pkg
+/var/cache/pkg/ja-celrw-0.16~35a885af34.pkg
+/var/cache/pkg/ja-ctags-5.8j2~c27f98d34e.pkg
+/var/cache/pkg/ja-less-382.262.03.01~f4b3f2c476.pkg
+/var/cache/pkg/ja-mh-6.8.4.j3.05_5~4528f4a586.pkg
+/var/cache/pkg/ja-ng-1.4.4_2~015641761e.pkg
+/var/cache/pkg/ja-slrn-0.9.6.2~883b9353f6.pkg
+/var/cache/pkg/ja-zinnia-0.06_1~a3c08d6f72.pkg
+/var/cache/pkg/jbig2dec-0.19~e19346d7d7.pkg
+
+*	jimtcl-0.81~ce70a700df.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/jove-4.16_2~d05398daf2.pkg
+
+*	jwasm-2.14,1~f5fbd2e408.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/kermit-9.0.305.06~7a6ebfc50a.pkg
+/var/cache/pkg/ko-engdic-0.2_1~1274ff6a50.pkg
+
+*	krb5-1.19.3~beaf3ed67b.pkg
+	*	Signal handling (user interrupt)
+
+/var/cache/pkg/krb5-118-1.18.5~bf327bdd4d.pkg
+/var/cache/pkg/krb5-119-1.19.3~612ef55cdd.pkg
+/var/cache/pkg/lamarc-2.1.8_1,1~a06dfaf15b.pkg
+
+*	lambdamoo-1.8.1_1~2d0684f3ea.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/lbl-hf-1.9~3a4ed8ce4e.pkg
+/var/cache/pkg/le-1.16.8~88278355c5.pkg
+/var/cache/pkg/leafnode-1.11.12~b406e48388.pkg
+
+*	less-551_1~2bb01fb191.pkg
+	*	Signal handling
+
+/var/cache/pkg/libICE-1.0.10,1~9123de0e5d.pkg
+
+*	libcddb-1.3.2_4~7cea401773.pkg
+	*	Signal handling
+
+/var/cache/pkg/libcii-1.1~bd55e7ca27.pkg
+
+*	libedit-3.1.20210910,1~f526ff659c.pkg
+	*	Internal logic
+
+*	libkate-0.4.1_11~be79df3a80.pkg
+	*	libpng support
+
+/var/cache/pkg/libmill-1.18~b0a272fe60.pkg
+/var/cache/pkg/liboil-0.3.17_3~71c0d1e1ca.pkg
+
+*	libsieve-2.3.1_2~a32a6c2fb3.pkg
+	*	Exception mechanism (https://arxiv.org/abs/1003.2547)
+
+/var/cache/pkg/libzvbi-0.2.35_3~ca9bf96831.pkg
+
+*	lrzsz-0.12.20_4~b5be162bd1.pkg
+	*	Signal handling (user interrupt)
+
+/var/cache/pkg/lua51-5.1.5_9~3b6ed3eb9e.pkg
+/var/cache/pkg/lua51-cqueues-20200726_1~d31de3e5bc.pkg
+/var/cache/pkg/lua52-5.2.4~873c35729f.pkg
+/var/cache/pkg/lua52-cqueues-20200726_1~46c648842d.pkg
+/var/cache/pkg/lua53-5.3.6~2156a8209c.pkg
+/var/cache/pkg/lua53-cqueues-20200726_1~97e0764686.pkg
+/var/cache/pkg/lua54-5.4.2~43a95af904.pkg
+/var/cache/pkg/lua54-cqueues-20200726_1~c04a0e7c76.pkg
+/var/cache/pkg/lwp-2.8~3a4c803120.pkg
+/var/cache/pkg/mapm3-3.0_1~96231250ba.pkg
+
+*	mathomatic-16.0.5_2~0bc5a1fba2.pkg
+	*	Internal logic
+
+/var/cache/pkg/mawk-1.3.4.20190203~b4c7dff613.pkg
+/var/cache/pkg/mcpp-2.7.2_3~e4339ab1c5.pkg
+
+*	mcrypt-2.6.8_3~9ef2a9fbdc.pkg
+	*	Signal handling
+
+/var/cache/pkg/meqcc-1.4~d56e3d47f5.pkg
+
+*	minicom-2.8~c4c14610cf.pkg
+	*	Signal handling (timeout implementation & user interrupt)
+
+/var/cache/pkg/mixal-1.11~08e30b4cae.pkg
+/var/cache/pkg/ml1-4.12_1~895aea680c.pkg
+/var/cache/pkg/mmh-0.4~6ebf7a20a3.pkg
+/var/cache/pkg/monit-5.32.0~6a03a2a857.pkg
+/var/cache/pkg/mp-5.57~c33c61ce5b.pkg
+/var/cache/pkg/mpexpr-1.2_1~2fbdb25135.pkg
+
+*	mujs-1.2.0~3cd3dc3267.pkg
+	*	Exception mechanism
+	*	Throw errors to the library's caller
+
+/var/cache/pkg/nawk-20121220_1~f3571161a8.pkg
+/var/cache/pkg/ncftp-3.2.6_2~0b2e492a69.pkg
+
+*	nfsshell-20130510_4~71afa9cdb5.pkg
+	*	Signal handling (user interrupt)
+
+/var/cache/pkg/nntp-1.5.12.2_10~fc0a9ff4e7.pkg
+/var/cache/pkg/nyancat-1.5.2,1~67ecd3bf96.pkg
+/var/cache/pkg/ocrad-0.28~e8ef89f876.pkg
+
+*	oidentd-2.5.1~882f447d18.pkg
+	*	Signal handling (timeout implementation)
+
+*	oksh-7.0,1~e103ca84f6.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/oleo-1.99.16_15~bd36f575da.pkg
+
+*	openssl-devel-3.0.2~79154fd6f1.pkg
+	*	Signal handling (for probing CPU instruction availability)
+
+/var/cache/pkg/openssl-quictls-3.0.2~4fab1c88e4.pkg
+/var/cache/pkg/optipng-0.7.7~441e7ef70f.pkg
+
+*	p5-Coro-6.570,1~c38cb2a5e5.pkg
+	*	Uses libcoro (http://software.schmorp.de/pkg/libcoro.html)
+		Similar to pth hack
+
+/var/cache/pkg/p5-Data-Clone-0.004_2~31fe469c77.pkg
+/var/cache/pkg/p5-Devel-PPPort-3.68~ca8bbb2e5d.pkg
+/var/cache/pkg/p5-Math-TrulyRandom-1.0_2~c647ebc818.pkg
+/var/cache/pkg/p5-Storable-AMF-1.00_1~411166eb6b.pkg
+/var/cache/pkg/p5-Test-LeakTrace-0.17~bee457a7e1.pkg
+/var/cache/pkg/p5-Text-ClearSilver-0.10.5.4_1~fa3a99bfe3.pkg
+/var/cache/pkg/p5-YAML-LibYAML-0.83~b58f4f5857.pkg
+/var/cache/pkg/p5-threads-2.21~029cd28314.pkg
+/var/cache/pkg/pam-modules-2.2_1~b2bec343ac.pkg
+
+*	panda-imap-20130621_2~e42de36941.pkg
+	*	Signal handling
+
+/var/cache/pkg/pbasic-2.1~8e4d646198.pkg
+/var/cache/pkg/pico-alpine-2.25~dfd121be9e.pkg
+
+*	pigz-2.7~77cf284545.pkg
+	*	Exception mechanism (try.c by Mark Adler)
+
+/var/cache/pkg/pkg-1.17.5_1~910432699e.pkg
+/var/cache/pkg/pkg-devel-1.17.99.9_1~7f1b82a7a6.pkg
+/var/cache/pkg/png-1.6.37_1~8081584cfb.pkg
+/var/cache/pkg/png2ico-2002.12.08_5~43d16dff3e.pkg
+/var/cache/pkg/pngcrush-1.8.13~a91b93ece6.pkg
+/var/cache/pkg/pngnq-1.1_3~5619dabb02.pkg
+/var/cache/pkg/pngquant-2.17.0~cd12f2127f.pkg
+/var/cache/pkg/pngrewrite-1.4.0_2~6825fadfd3.pkg
+/var/cache/pkg/pocketsphinx-0.8_1~d576d4cecb.pkg
+
+*	postgresql14-client-14.2~259718c333.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/postgresql14-contrib-14.2_2~90a31006a1.pkg
+/var/cache/pkg/poudriere-3.3.7_1~f8f02b2573.pkg
+/var/cache/pkg/poudriere-devel-3.3.99.20211130~d6e6bd4722.pkg
+
+*	pptpclient-1.10.0~7ffe0cf0c4.pkg
+	*	Signal handling
+
+/var/cache/pkg/premake-3.7_1~e319a8d493.pkg
+
+*	primer3-2.3.6~4034f59a5d.pkg
+	*	Exception mechanism
+
+*	pth-2.0.7_1~2d13ed260d.pkg
+	*	Dirty hack
+	*	https://www.usenix.org/legacy/publications/library/proceedings/usenix2000/general/full_papers/engelschall/engelschall.pdf
+
+/var/cache/pkg/pth-hard-2.0.7_1~ff0b0d7b01.pkg
+/var/cache/pkg/pthsem-2.0.8_3~84e6b9863d.pkg
+/var/cache/pkg/puf-1.0.0~d32f405937.pkg
+/var/cache/pkg/qcc-1.01~0d11462bdd.pkg
+/var/cache/pkg/qccx-1.0.0~46ccc65afa.pkg
+/var/cache/pkg/qpage-3.3_8~ace351e968.pkg
+/var/cache/pkg/qpopper-4.1.0_6~1b1a289b00.pkg
+/var/cache/pkg/raptor-1.4.21_8~cc6ba67cb1.pkg
+/var/cache/pkg/rdist-6.1.5_7~a267649139.pkg
+
+*	redis-6.2.6~a4f79fad6c.pkg
+	*	Exception mechanism for Lua interpreter
+
+/var/cache/pkg/redis-devel-7.0.0.20220331~25a3f1bee1.pkg
+/var/cache/pkg/redis6-6.0.16~ee7dd22634.pkg
+
+*	remake-1.6~13b81ea398.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/rgbds-0.5.2~9d88a92309.pkg
+/var/cache/pkg/rnv-1.7.11_1~175c120727.pkg
+
+*	rubiks-20070912~ce4a9077ec.pkg
+	*	Signal handling
+
+*	scale2x-3.1_1~f9a62c4c83.pkg
+	*	libpng support
+
+/var/cache/pkg/scare-1.3.10~04c77768e2.pkg
+/var/cache/pkg/simh-3.9.0_5~0da9fe8e47.pkg
+/var/cache/pkg/simh-hp2100-3.11.0.31~efbeceabdd.pkg
+/var/cache/pkg/simh-hp3000-3.11.0.10~4d7c6a0af7.pkg
+
+*	slrn-1.0.3a_1~0f8313bd0c.pkg
+	*	Signal handling
+
+/var/cache/pkg/smtpfeed-1.23~06996d75ef.pkg
+/var/cache/pkg/spar-0.5.10_6~cd3a71969e.pkg
+
+*	sphinxbase-0.8_2~30825100dc.pkg
+	*	Throw errors to the library's caller
+
+*	spinner-1.2.4~37e070ecc3.pkg
+	*	Signal handling (timeout implementation)
+
+/var/cache/pkg/spot-2.10.4~1d137625f9.pkg
+/var/cache/pkg/srvx-1.3.1~eacac237e7.pkg
+
+*	ssmtp-2.64_7~3135886195.pkg
+	*	Signal handling (timeout implementation)
+
+*	stunnel-5.63,1~a1137bdff4.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/sup-2.0.20200824~7bb1ea5b2d.pkg
+/var/cache/pkg/tacacs-202004081858~d23e863b48.pkg
+/var/cache/pkg/tads-2.5.9~b000ddec48.pkg
+
+*	tcpshow-1.74_2~f1be366c0c.pkg
+	*	Exception mechanism
+
+/var/cache/pkg/tempcontrol-1.2_3~3827ba96dd.pkg
+/var/cache/pkg/tex-libtexlua-5.3.6~6b8daf73f1.pkg
+/var/cache/pkg/tf-5.0b8_4~5565c6847d.pkg
+
+*	tftp-hpa-5.2_1~06cde16c10.pkg
+	*	Signal handling (timeout implementation & user interrupt)
+
+/var/cache/pkg/timed-8.1_1~f91e08d2b4.pkg
+
+*	tinyfugue-devel-5.1.3~299ed8f6b3.pkg
+	*	Signal handling
+
+/var/cache/pkg/tnftp-20210827~becd406d5c.pkg
+
+*	tnylpo-1.1.3~4e0828d363.pkg
+	*	Signal handling (timeout implementation)
+	*	Parser implementation
+	*	Exception mechanism
+
+/var/cache/pkg/trafshow3-3.1_8,1~9c8a34c339.pkg
+
+*	ucpp-1.3.2,1~4abc4bb74b.pkg
+	*	Parser implementation
+
+/var/cache/pkg/vi-vnless-1.0_1~f42474346a.pkg
+/var/cache/pkg/vile-9.8v~25b9ea88cb.pkg
+
+*	vim-tiny-8.2.4669~7d1f131793.pkg
+	*	Consumer of libraries that longjmp on exception (python, x11)
+	*	Signal handling
+
+/var/cache/pkg/vrfy-1.0_2~31ca87e2a2.pkg
+
+*	vttest-2018.08.11~481e588d0b.pkg
+	*	Signal handling
+
+/var/cache/pkg/wy60-2.0.9~f7ada964d9.pkg
+
+*	xinetd-2.3.15_2~d328ebfc77.pkg
+	*	Signal handling
+
+/var/cache/pkg/xpilot-ng-server-4.7.3_5~e7cdc33922.pkg
+/var/cache/pkg/xspread-3.1.1c_4~06fcfc7c4c.pkg
+/var/cache/pkg/xxl-1.0.1_3~97b2b1fc7d.pkg
+/var/cache/pkg/zh-celvis-1.3~270ae6a6bf.pkg
+/var/cache/pkg/zh-cless-290~d1c17db7e6.pkg
+/var/cache/pkg/zh-ve-1.1~a9668d256e.pkg
