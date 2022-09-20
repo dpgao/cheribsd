@@ -35,8 +35,7 @@ FBSDprivate_1.0 {
     _rtld_version__FreeBSD_version;
     _rtld_version_laddr_offset;
     _rtld_version_dlpi_tls_data;
-    _rtld_tramp_stks_funcs_init;
-    _rtld_thread_start;
+    _rtld_thread_start_tramp;
     _rtld_setjmp;
     _rtld_longjmp;
 };

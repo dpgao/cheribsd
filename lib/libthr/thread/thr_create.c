@@ -58,7 +58,8 @@ __FBSDID("$FreeBSD$");
 #include "thr_private.h"
 
 static int  create_stack(struct pthread_attr *pattr);
-void thread_start(struct pthread *curthread);
+static void thread_start(struct pthread *curthread);
+void (*_rtld_thread_start_tramp(void (*)(struct pthread *)))(struct pthread *);
 
 __weak_reference(_pthread_create, pthread_create);
 
@@ -166,7 +167,7 @@ _pthread_create(pthread_t * __restrict thread,
 		locked = 1;
 	} else
 		locked = 0;
-	param.start_func = (void (*)(void *)) _rtld_thread_start;
+	param.start_func = (void (*)(void *)) _rtld_thread_start_tramp(thread_start);
 	param.arg = new_thread;
 	param.stack_base = new_thread->attr.stackaddr_attr;
 	param.stack_size = new_thread->attr.stacksize_attr;
@@ -267,7 +268,7 @@ create_stack(struct pthread_attr *pattr)
 	return (ret);
 }
 
-void
+static void
 thread_start(struct pthread *curthread)
 {
 	sigset_t set;

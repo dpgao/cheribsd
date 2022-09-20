@@ -79,7 +79,7 @@ struct tramp_delegate;
 struct tramp_stk_table;
 void _rtld_tramp_stks_funcs_init(struct tramp_delegate *fs) __exported;
 
-void _rtld_thread_start(struct pthread *curthread);
+void (*_rtld_thread_start_tramp(void (*)(struct pthread *)))(struct pthread *);
 #endif
 
 #endif /* IN_RTLD || PTHREAD_KERNEL */
