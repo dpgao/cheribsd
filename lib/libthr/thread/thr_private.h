@@ -67,7 +67,6 @@
 #include <ucontext.h>
 #include <sys/thr.h>
 #include <pthread.h>
-#include <rtld.h>
 #ifdef __CHERI_PURE_CAPABILITY__
 #include <cheri/cheric.h>
 #endif
@@ -490,7 +489,7 @@ struct pthread {
 
 	/*
 	 * Error variable used instead of errno. The function __error()
-	 * returns a pointer to this.
+	 * returns a pointer to this. 
 	 */
 	int			error;
 
@@ -522,7 +521,7 @@ struct pthread {
 #define	TMQ_NORM_PP		2	/* PRIO_PROTECT normal mutexes */
 #define	TMQ_NORM_PP_PRIV	3	/* PRIO_PROTECT normal priv */
 #define	TMQ_ROBUST_PP		4	/* PRIO_PROTECT robust mutexes */
-#define	TMQ_ROBUST_PP_PRIV	5	/* PRIO_PROTECT robust priv */
+#define	TMQ_ROBUST_PP_PRIV	5	/* PRIO_PROTECT robust priv */	
 #define	TMQ_NITEMS		6
 	struct mutex_queue	mq[TMQ_NITEMS];
 

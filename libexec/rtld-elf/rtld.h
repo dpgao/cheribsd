@@ -454,10 +454,6 @@ struct tramp_pg {
 };
 
 SLIST_HEAD(tramp_pgs, tramp_pg);
-
-struct tramp_delegate {
-	void (*thr_thread_entry)(struct pthread *);
-};
 #endif
 
 void _rtld_error(const char *, ...) __printflike(1, 2) __exported;

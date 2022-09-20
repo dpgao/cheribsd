@@ -11,6 +11,8 @@ SHLIBDIR?= /lib
 .include <src.opts.mk>
 MK_SSP=	no
 
+CFLAGS+=-DCOMPARTMENTALISATION
+
 LIB=thr
 SHLIB_MAJOR= 3
 NO_WTHREAD_SAFETY=1

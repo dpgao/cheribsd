@@ -156,7 +156,7 @@ _thr_rtld_lock_release(void *lock)
 	curthread = _get_curthread();
 	SAVE_ERRNO();
 	l = (struct rtld_lock *)lock;
-
+	
 	state = l->lock.rw_state;
 	if (_thr_rwlock_unlock(&l->lock) == 0) {
 		if ((state & URWLOCK_WRITE_OWNER) == 0)
@@ -208,13 +208,9 @@ _thr_dlerror_seen(void)
 }
 
 void
-thread_start(struct pthread *curthread);
-
-void
 _thr_rtld_init(void)
 {
 	struct RtldLockInfo	li;
-	struct tramp_delegate	delegate;
 	struct pthread		*curthread;
 	ucontext_t *uc;
 	long dummy = -1;
@@ -229,7 +225,7 @@ _thr_rtld_init(void)
 	 */
 	/* _umtx_op_err((struct umtx *)&dummy, UMTX_OP_WAKE, 1, 0, 0); */
 	_umtx_op_err((struct umtx *)&dummy, INT_MAX, 1, 0, 0);
-
+	
 	/* force to resolve errno() PLT */
 	__error();
 
@@ -252,8 +248,6 @@ _thr_rtld_init(void)
 	li.dlerror_loc_sz = sizeof(curthread->dlerror_msg);
 	li.dlerror_seen = _thr_dlerror_seen;
 
-	delegate.thr_thread_entry = thread_start;
-
 	/*
 	 * Preresolve the symbols needed for the fork interposer.  We
 	 * call _rtld_atfork_pre() and _rtld_atfork_post() with NULL
@@ -275,7 +269,6 @@ _thr_rtld_init(void)
 	/* mask signals, also force to resolve __sys_sigprocmask PLT */
 	_thr_signal_block(curthread);
 	_rtld_thread_init(&li);
-	_rtld_tramp_stks_funcs_init(&delegate);
 	_thr_signal_unblock(curthread);
 	_thr_signal_block_check_fast();
 	_thr_signal_block_setup(curthread);

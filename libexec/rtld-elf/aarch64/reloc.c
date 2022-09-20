@@ -250,9 +250,9 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tr
 	}
 }
 
-static struct tramp_delegate delegates;
+static void (*_thr_thread_entry)(struct pthread *);
 
-void _rtld_thread_start(struct pthread *curthread)
+static void _rtld_thread_start(struct pthread *curthread)
 {
 	void *tls;
 	asm ("mrs	%0, ctpidr_el0" : "=C" (tls));
@@ -261,15 +261,16 @@ void _rtld_thread_start(struct pthread *curthread)
 	tls = xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table));
 	asm ("msr	ctpidr_el0, %0" :: "C" (tls));
 
-	uintptr_t wrapped_entry = tramp_pgs_append((uintptr_t)delegates.thr_thread_entry, obj_from_addr(delegates.thr_thread_entry));
-
-	((void (*)(struct pthread *curthread))wrapped_entry)(curthread);
+	_thr_thread_entry(curthread);
 }
 
 void
-_rtld_tramp_stks_funcs_init(struct tramp_delegate *delegate)
+(*_rtld_thread_start_tramp(void (*thr_thread_entry)(struct pthread *)))(struct pthread *)
 {
-	delegates = *delegate;
+	if (!_thr_thread_entry) {
+		_thr_thread_entry = (void *)tramp_pgs_append((uintptr_t)thr_thread_entry, obj_from_addr(thr_thread_entry));
+	}
+	return _rtld_thread_start;
 }
 
 static void *
