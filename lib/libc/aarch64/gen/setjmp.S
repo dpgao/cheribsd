@@ -44,9 +44,11 @@ ENTRY(setjmp)
 	mov	x0, #1				/* SIG_BLOCK */
 	bl	sigprocmask
 
-	/* Store Executive stack */
+#ifdef RTLD_SANDBOX
+	/* Store Executive mode state */
 	bl	_rtld_setjmp
 	mov	c1, c0
+#endif
 
 	ldp	REG(0), REGN(lr), [REGN(sp)]
 	add	REGN(sp), REGN(sp), #(REG_WIDTH * 2)
@@ -68,10 +70,14 @@ ENTRY(setjmp)
 	stp	d8, d9, [REG(0)], #16
 	stp	d10, d11, [REG(0)], #16
 	stp	d12, d13, [REG(0)], #16
+#ifdef RTLD_SANDBOX
 	stp	d14, d15, [REG(0)], #16
 
-	/* Store Executive stack */
+	/* Store Executive mode state */
 	str	c1, [REG(0)]
+#else
+	stp	d14, d15, [REG(0)]
+#endif
 
 	/* Return value */
 	mov	x0, #0
@@ -118,15 +124,19 @@ ENTRY(longjmp)
 	ldp	d8, d9, [REG(0)], #16
 	ldp	d10, d11, [REG(0)], #16
 	ldp	d12, d13, [REG(0)], #16
+#ifdef RTLD_SANDBOX
 	ldp	d14, d15, [REG(0)], #16
 
-	/* Restore Executive stack */
+	/* Restore Executive mode state */
 	stp	REG(1), REGN(lr), [REGN(sp), #-(REG_WIDTH * 2)]!
 
 	ldr	c0, [c0]
 	bl	_rtld_longjmp
 
 	ldp	REG(1), REGN(lr), [REGN(sp)], #(REG_WIDTH * 2)
+#else
+	ldp	d14, d15, [REG(0)]
+#endif
 
 	/* Load the return value */
 	mov	x0, x1

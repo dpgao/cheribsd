@@ -74,7 +74,7 @@ ENTRY(.rtld_start)
 	ldr	c2, [csp, #16]			/* Load obj_main */
 	mov	c0, c19				/* Restore aux */
 	mov	csp, c20			/* Restore the stack pointer */
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	blrr	c8				/* Jump to the entry point */
 #else
 	br      c8                              /* Jump to the entry point */
@@ -105,7 +105,7 @@ END(.rtld_start)
  * x17 = &_rtld_bind_start
  */
 ENTRY(_rtld_bind_start)
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	/* Calls to _rtld_bind_start does not go through the trampoline
 	 * because _rtld_bind_start never returns, which would break the
 	 * trampoline's invariant.
@@ -121,7 +121,7 @@ ENTRY(_rtld_bind_start)
 #endif
 
 	/* Save frame pointer and SP */
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	stp	PTR(29), PTR(17), [PTRN(sp), #-(PTR_WIDTH * 2)]!
 	mov	PTR(29), PTRN(sp)
 	.cfi_def_cfa PTR(29), (PTR_WIDTH * 2)
@@ -188,14 +188,14 @@ ENTRY(_rtld_bind_start)
 	ldp	CAP(0), CAP(1), [PTRN(sp)], #(CAP_WIDTH * 2)
 
 	/* Restore frame pointer */
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	ldp	PTR(29), PTR(17), [PTRN(sp)], #(PTR_WIDTH * 2)
 #else
 	ldp	PTR(29), PTR(zr), [PTRN(sp)], #(PTR_WIDTH * 2)
 #endif
 
 	 /* Restore link register saved by the plt code */
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	ldp	czr, c30, [c17], #(PTR_WIDTH * 2)
 	msr	RCSP_EL0, c17
 #else
@@ -221,7 +221,7 @@ ENTRY(_rtld_tlsdesc_static)
 	ldp	x0, x1, [c0, #16]
 	add	c0, c2, x0
 	scbnds	c0, c0, x1
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	retr	c30
 #else
 	ret
@@ -240,7 +240,7 @@ END(_rtld_tlsdesc_static)
 ENTRY(_rtld_tlsdesc_undef)
 #ifdef __CHERI_PURE_CAPABILITY__
 	ldr	x0, [c0, #16]
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	retr	c30
 #else
 	ret
@@ -293,7 +293,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 	/* Restore registers and return */
 	ldp	 c3,  c4, [csp], #32
 	.cfi_adjust_cfa_offset 	-2 * 16
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	retr	c30
 #else
 	ret
@@ -367,7 +367,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 	/* Restore fast path registers and return */
 	ldp	 c3,  c4, [csp], #32
 	.cfi_adjust_cfa_offset 	-2 * 16
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	retr	c30
 #else
 	ret
@@ -472,7 +472,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 #endif /* defined(__CHERI_PURE_CAPABILITY__) */
 END(_rtld_tlsdesc_dynamic)
 
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 ENTRY(_rtld_setjmp)
 	/*
 	Before setjmp is called, the top of the Executive stack contains:
@@ -621,12 +621,23 @@ ENTRY(_rtld_longjmp)
 1:	ret
 END(_rtld_longjmp)
 
+#ifdef HASHTABLE_STACK_SWITCHING
+
 .section	tramp_template_exe,"a"
 .p2align	4
-data_cap_exe:
+target_cap_exe:
 	.chericap	0
 	.chericap	0
 	.chericap	0
+
+#else
+
+.section	tramp_template_exe,"a"
+.p2align	4
+target_cap_exe:
+	.chericap	0
+	.word		0
+#endif
 
 	// If caller is Restricted, save its rcsp in two places
 	// 1. The bottom of itself
@@ -639,10 +650,11 @@ data_cap_exe:
 	scvalue	c11, c10, x11
 	str	c10, [c11, #-CAP_WIDTH]
 	str	c10, [csp, #-CAP_WIDTH]
+
 1:	mov	c10, csp
 	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
 
-	ldr	c10, data_cap_exe
+	ldr	c10, target_cap_exe
 	blr	c10
 
 	// If caller is Restricted, restore to its saved rcsp
@@ -657,9 +669,11 @@ data_cap_exe:
 
 1:	retr	c30
 
+#ifdef HASHTABLE_STACK_SWITCHING
+
 .section	tramp_template_res,"a"
 .p2align	4
-data_cap:
+target_cap:
 	.chericap	0
 get_rstk:
 	.chericap	0
@@ -677,6 +691,7 @@ dst_obj:
 	scvalue	c11, c10, x11
 	str	c10, [c11, #-CAP_WIDTH]
 	str	c10, [csp, #-CAP_WIDTH]
+
 1:	mov	c10, csp
 	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
 
@@ -699,7 +714,7 @@ dst_obj:
 
 4:	ldr	c16, [c16, #-CAP_WIDTH]
 	msr	RCSP_EL0, c16
-	ldr	c10, data_cap
+	ldr	c10, target_cap
 	blrr	c10
 
 	// Callee's saved rcsp may have changed during the call
@@ -758,4 +773,87 @@ dst_obj:
 	ldp	c0, c1, [csp], #(5 * CAP_WIDTH * 2)
 
 	b	7b
+
+#else
+
+.section	tramp_template_res,"a"
+.p2align	4
+target_cap:
+	.chericap	0
+dst_obj:
+	.word		0
+
+	// If caller is Restricted, save its rcsp in two places
+	// 1. The bottom of itself
+	// 2. The top of the Executive stack
+	gcperm	x10, c30
+	tbnz	x10, #1, 1f
+
+	mrs	c10, RCSP_EL0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
+	str	c10, [csp, #-CAP_WIDTH]
+
+1:	mov	c10, csp
+	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
+
+	// Callee is Restricted, so switch to its saved rcsp
+	// at the bottom of itself
+4:	ldr	w10, dst_obj				// w10 = index
+	mrs	c11, ctpidr_el0				// c11 = table
+	gclen	x12, c11				// x12 = len(table)
+	cmp	x12, x10, lsl #4			// if (len(table) >= index)
+	b.ls	2f					// goto 2f
+
+	ldr	c12, [c11, w10, uxtw #4]		// c12 = table[index]
+	cbz	x12, 2f					// if (!table[index]) goto 2f
+
+	ldr	c12, [c12, #-CAP_WIDTH]
+	ldr	c11, target_cap
+	msr	rcsp_el0, c12
+	blrr	c11
+
+	// Callee's saved rcsp may have changed during the call
+	// (e.g. because it called into another compartment)
+	// We restore it to the correct value here
+	mrs	c10, RCSP_EL0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
+
+	// If caller is Restricted, restore to its saved rcsp
+	// at the top of the Executive stack
+	ldr	c10, [csp]
+	mov	csp, c10
+	ldp	c30, c10, [csp, #-(CAP_WIDTH * 2)]
+	gcperm	x11, c30
+	tbnz	x11, #1, 3f
+
+	msr	RCSP_EL0, c10
+
+3:	retr	c30
+
+2:	stp	c8, c9, [csp, #-(1 * CAP_WIDTH * 2)]
+	stp	c6, c7, [csp, #-(2 * CAP_WIDTH * 2)]
+	stp	c4, c5, [csp, #-(3 * CAP_WIDTH * 2)]
+	stp	c2, c3, [csp, #-(4 * CAP_WIDTH * 2)]
+	stp	c0, c1, [csp, #-(5 * CAP_WIDTH * 2)]!
+
+	mov	w0, w10					// w0 = index
+	mov	c1, c11					// c1 = table
+	ldr	c2, target_cap				// c2 = data
+
+	ldr	c3, [c11]
+	blr	c3
+
+	ldp	c8, c9, [csp, #(4 * CAP_WIDTH * 2)]
+	ldp	c6, c7, [csp, #(3 * CAP_WIDTH * 2)]
+	ldp	c4, c5, [csp, #(2 * CAP_WIDTH * 2)]
+	ldp	c2, c3, [csp, #(1 * CAP_WIDTH * 2)]
+	ldp	c0, c1, [csp], #(5 * CAP_WIDTH * 2)
+
+	b	4b
+#endif
+
 #endif

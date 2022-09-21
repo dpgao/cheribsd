@@ -311,6 +311,15 @@ static size_t tls_static_max_align;
 Elf_Addr tls_dtv_generation = 1;	/* Used to detect when dtv size changes */
 int tls_max_index = 1;		/* Largest module index allocated */
 
+#ifdef RTLD_SANDBOX
+#ifndef HASHTABLE_STACK_SWITCHING
+/*
+ * Globals for compartmentalisation
+ */
+uint32_t compart_max_index = 1; /* Largest compartment index allocated */
+#endif
+#endif
+
 static bool ld_library_path_rpath = false;
 bool ld_fast_sigblock = false;
 
@@ -848,7 +857,7 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
     } else {				/* Main program already loaded. */
 	dbg("processing main program's program header");
 	assert(aux_info[AT_PHDR] != NULL);
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	phdr = (const Elf_Phdr *) cheri_clearperm(aux_info[AT_PHDR]->a_un.a_ptr, CHERI_PERM_EXECUTIVE);
 #else
 	phdr = (const Elf_Phdr *) aux_info[AT_PHDR]->a_un.a_ptr;
@@ -858,7 +867,7 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
 	assert(aux_info[AT_PHENT] != NULL);
 	assert(aux_info[AT_PHENT]->a_un.a_val == sizeof(Elf_Phdr));
 	assert(aux_info[AT_ENTRY] != NULL);
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	imgentry = (dlfunc_t) cheri_clearperm(aux_info[AT_ENTRY]->a_un.a_ptr, CHERI_PERM_EXECUTIVE);
 #else
 	imgentry = (dlfunc_t) aux_info[AT_ENTRY]->a_un.a_ptr;
@@ -1109,7 +1118,7 @@ _rtld(Elf_Addr *sp, func_ptr_type *exit_proc, Obj_Entry **objp)
     *exit_proc = rtld_exit_ptr;
     *objp = obj_main;
 
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
     return (func_ptr_type)tramp_pgs_append((uintptr_t)cheri_sealentry(obj_main->entry), obj_main);
 #else
     return ((func_ptr_type)obj_main->entry);
@@ -1123,7 +1132,7 @@ rtld_resolve_ifunc(const Obj_Entry *obj, const Elf_Sym *def)
 	uintptr_t target;
 
 	ptr = (void *)make_function_pointer(def, obj);
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	ptr = (void *)tramp_pgs_append((uintptr_t)ptr, obj);
 #endif
 	target = call_ifunc_resolver(ptr);
@@ -1175,7 +1184,7 @@ _rtld_bind(Obj_Entry *obj, Elf_Size reloff)
      * address. The value returned from reloc_jmpslot() is the value
      * that the trampoline needs.
      */
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
     target = tramp_pgs_append(target, defobj);
 #endif
     target = reloc_jmpslot(where, target, defobj, obj, rel);
@@ -3343,7 +3352,7 @@ objlist_call_init(Objlist *list, RtldLockState *lockstate)
 	if (reg != NULL) {
 		func_ptr_type exit_ptr = make_rtld_function_pointer(rtld_exit);
 		dbg("Calling __libc_atexit(rtld_exit (" PTR_FMT "))", (void*)exit_ptr);
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 		reg = (void *)tramp_pgs_append((uintptr_t)reg, obj_from_addr(reg));
 #endif
 		reg(exit_ptr);
@@ -4266,13 +4275,13 @@ do_dlsym(void *handle, const char *name, void *retaddr, const Ver_Entry *ve,
 	 */
 	if (ELF_ST_TYPE(def->st_info) == STT_FUNC) {
 	    sym = __DECONST(void*, make_function_pointer(def, defobj));
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	    sym = (void *)tramp_pgs_append((uintptr_t)sym, defobj);
 #endif
 	    dbg("dlsym(%s) is function: " PTR_FMT, name, sym);
 	} else if (ELF_ST_TYPE(def->st_info) == STT_GNU_IFUNC) {
 	    sym = rtld_resolve_ifunc(defobj, def);
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	    sym = (void *)tramp_pgs_append((uintptr_t)sym, defobj);
 #endif
 	    dbg("dlsym(%s) is ifunc. Resolved to: " PTR_FMT, name, sym);
@@ -4493,7 +4502,7 @@ rtld_fill_dl_phdr_info(const Obj_Entry *obj, struct dl_phdr_info *phdr_info)
 	phdr_info->dlpi_name = obj->path;
 	phdr_info->dlpi_phnum = obj->phsize / sizeof(obj->phdr[0]);
 	phdr_info->dlpi_tls_modid = obj->tlsindex;
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 	asm ("mrs	%0, RCTPIDR_EL0" : "=C" (dtvp));
 #else
 	dtvp = &_tcb_get()->tcb_dtv;

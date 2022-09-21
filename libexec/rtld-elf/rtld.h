@@ -84,6 +84,12 @@ extern size_t tls_static_space;
 extern Elf_Addr tls_dtv_generation;
 extern int tls_max_index;
 
+#ifdef RTLD_SANDBOX
+#ifndef HASHTABLE_STACK_SWITCHING
+extern uint32_t compart_max_index;
+#endif
+#endif
+
 extern int npagesizes;
 extern size_t *pagesizes;
 extern size_t page_size;
@@ -139,7 +145,7 @@ typedef struct Struct_Name_Entry {
     char   name[1];
 } Name_Entry;
 
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 struct Struct_Stack_Entry {
     SLIST_ENTRY(Struct_Stack_Entry) link;
     void *stack;
@@ -298,9 +304,12 @@ typedef struct Struct_Obj_Entry {
     Ver_Entry *vertab;		/* Versions required /defined by this object */
     int vernum;			/* Number of entries in vertab */
 
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
     SLIST_HEAD(, Struct_Stack_Entry) stacks; /* List of object's per-thread stacks */
     void *stackslock;
+#ifndef HASHTABLE_STACK_SWITCHING
+    uint32_t compart_id;
+#endif
 #endif
 
     void* init_ptr;		/* Initialization function to call */
@@ -438,11 +447,15 @@ typedef struct Struct_SymLook {
     struct Struct_RtldLockState *lockstate;
 } SymLook;
 
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 struct tramp {
-	uintptr_t data;
+	uintptr_t target;
+#ifdef HASHTABLE_STACK_SWITCHING
 	const void *get_rstk_cap;
 	const void *dst_obj;
+#else
+	uint32_t compart_id;
+#endif
 	char padding;
 	const char code[] __attribute__((cheri_no_subobject_bounds));
 };
@@ -517,7 +530,7 @@ __END_DECLS
 #endif
 
 #ifndef make_rtld_function_pointer
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 #define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func), NULL))
 #else
 #define make_rtld_function_pointer(target_func)	(&target_func)

@@ -59,7 +59,9 @@ __FBSDID("$FreeBSD$");
 
 static int  create_stack(struct pthread_attr *pattr);
 static void thread_start(struct pthread *curthread);
+#ifdef RTLD_SANDBOX
 void (*_rtld_thread_start_tramp(void (*)(struct pthread *)))(struct pthread *);
+#endif
 
 __weak_reference(_pthread_create, pthread_create);
 
@@ -167,7 +169,11 @@ _pthread_create(pthread_t * __restrict thread,
 		locked = 1;
 	} else
 		locked = 0;
+#ifdef RTLD_SANDBOX
 	param.start_func = (void (*)(void *)) _rtld_thread_start_tramp(thread_start);
+#else
+	param.start_func = (void (*)(void *)) thread_start;
+#endif
 	param.arg = new_thread;
 	param.stack_base = new_thread->attr.stackaddr_attr;
 	param.stack_size = new_thread->attr.stacksize_attr;

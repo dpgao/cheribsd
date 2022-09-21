@@ -149,7 +149,7 @@ make_data_cap(const Elf_Sym *def, const struct Struct_Obj_Entry *defobj)
 #define call_init_pointer(obj, target) rtld_fatal("%s: _init or _fini used!", obj->path)
 
 /* TODO: Per-function captable/PLT/FNDESC support */
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 #define call_init_array_pointer(obj, target)				\
 	(((InitArrFunc)tramp_pgs_append((uintptr_t)(target).value, obj))(main_argc, main_argv, environ))
 
@@ -208,7 +208,7 @@ extern void *__tls_get_addr(tls_index *ti);
 
 #define md_abi_variant_hook(x)
 
-#ifdef COMPARTMENTALISATION
+#ifdef RTLD_SANDBOX
 extern struct tramp_stk_table **(*thr_table_getter)(void);
 
 uintptr_t tramp_pgs_append(uintptr_t, const Obj_Entry *);
