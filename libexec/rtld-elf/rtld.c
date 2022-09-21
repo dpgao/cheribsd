@@ -311,6 +311,15 @@ static size_t tls_static_max_align;
 Elf_Addr tls_dtv_generation = 1;	/* Used to detect when dtv size changes */
 int tls_max_index = 1;		/* Largest module index allocated */
 
+#ifdef COMPARTMENTALISATION
+#ifndef HASHTABLE_STACK_SWITCHING
+/*
+ * Globals for compartmentalisation
+ */
+uint32_t compart_max_index = 1; /* Largest compartment index allocated */
+#endif
+#endif
+
 static bool ld_library_path_rpath = false;
 bool ld_fast_sigblock = false;
 

@@ -413,6 +413,11 @@ map_object(int fd, const char *path, const struct stat *sb, const char* main_pat
 	obj->tlsinitsize = phtls->p_filesz;
 	obj->tlsinit = mapbase + phtls->p_vaddr;
     }
+#ifdef COMPARTMENTALISATION
+#ifndef HASHTABLE_STACK_SWITCHING
+    obj->compart_id = compart_max_index++;
+#endif
+#endif
     obj->stack_flags = stack_flags;
     obj->relro_page = obj->relocbase + rtld_trunc_page(relro_page);
     obj->relro_size = rtld_trunc_page(relro_page + relro_size) -

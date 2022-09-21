@@ -169,19 +169,22 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 #endif /* __CHERI_PURE_CAPABILITY__ */
 
 #ifdef COMPARTMENTALISATION
-struct tramp_stk_table {
+
+#ifdef HASHTABLE_STACK_SWITCHING
+
+typedef struct {
 	vaddr_t key;
 	void *stk;
-};
-
-static void
-get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tramp_stk_table *cur)
-{
+} *tramp_stk_table;
 
 #define	KEY_ALIGNMENT 4
 #define	DEFAULT_FLAG_WIDTH 1
-#define DEFAULT_SIZE (1 << DEFAULT_FLAG_WIDTH)
-#define HASH_KEY(key, width) ((key >> KEY_ALIGNMENT) & ((DEFAULT_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
+#define DEFAULT_STACK_TABLE_SIZE (1 << DEFAULT_FLAG_WIDTH)
+
+static void
+get_rstk(tramp_stk_table table, vaddr_t flags, Obj_Entry *dst, tramp_stk_table cur)
+{
+#define HASH_KEY(key, width) ((key >> KEY_ALIGNMENT) & ((DEFAULT_STACK_TABLE_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
 
 	vaddr_t key = cheri_getaddress(dst);
 
@@ -194,7 +197,7 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tr
 
 		flags |= flags + 1;
 		size_t new_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
-		struct tramp_stk_table *new_t = xcalloc(new_len, sizeof(*new_t));
+		tramp_stk_table new_t = xcalloc(new_len, sizeof(*new_t));
 
 		asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
 
@@ -204,21 +207,17 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tr
 
 			size_t offset = HASH_KEY(key, flags);
 
-			// Must terminate
+			// Guaranteed to terminate
 			while (new_t[offset].key) {
 				offset = (offset - 1) & (new_len - 1);
 			}
 
-			new_t[offset] = (struct tramp_stk_table) {
-				.key = table[i].key,
-				.stk = table[i].stk
-			};
+			new_t[offset].key = table[i].key;
+			new_t[offset].stk = table[i].stk;
 		}
 
-		// XXX: Race condition!
+		asm ("msr	ctpidr_el0, %0" :: "C" (new_t));
 		free(table);
-		table = new_t;
-		asm ("msr	ctpidr_el0, %0" :: "C" (table));
 
 	} else {
 
@@ -250,15 +249,74 @@ get_rstk(struct tramp_stk_table *table, vaddr_t flags, Obj_Entry *dst, struct tr
 	}
 }
 
+#else
+
+#define DEFAULT_STACK_TABLE_SIZE 2
+
+typedef uintptr_t *tramp_stk_table;
+
+static void
+get_rstk(uint32_t index, tramp_stk_table table, void *target)
+{
+	size_t len = cheri_getlen(table) / sizeof(*table);
+
+	if (index < len) {
+
+		size_t size = 0x40000 * getpagesize();
+		char *stk = mmap(NULL,
+				 size,
+				 PROT_READ | PROT_WRITE,
+				 MAP_ANON | MAP_PRIVATE | MAP_STACK,
+				 -1, 0);
+		if (stk == MAP_FAILED)
+			rtld_die();
+		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
+		struct {
+			uint8_t generation;
+			uintptr_t top;
+		} *metadata = (void *)stk;
+		metadata[-1].generation = 0;
+		metadata[-1].top = (uintptr_t)&metadata[-1];
+
+		table[index] = (uintptr_t)stk;
+
+		struct Struct_Stack_Entry *entry = xmalloc(sizeof(*entry));
+		entry->stack = stk;
+
+		Obj_Entry *dst = obj_from_addr(target);
+		lockinfo.wlock_acquire(dst->stackslock);
+		SLIST_INSERT_HEAD(&dst->stacks, entry, link);
+		lockinfo.lock_release(dst->stackslock);
+
+	} else {
+
+		size_t new_len = len * 2;
+		tramp_stk_table new_t = xcalloc(new_len, sizeof(*new_t));
+		if (!new_t)
+			rtld_die();
+
+		for (size_t i = 0; i < len; ++i)
+			new_t[i] = table[i];
+
+		asm ("msr	ctpidr_el0, %0" :: "C" (new_t));
+		free(table);
+	}
+}
+
+#endif
+
 static void (*_thr_thread_entry)(struct pthread *);
 
 static void _rtld_thread_start(struct pthread *curthread)
 {
-	void *tls;
+	tramp_stk_table tls;
 	asm ("mrs	%0, ctpidr_el0" : "=C" (tls));
 	asm ("msr	rctpidr_el0, %0" :: "C" (tls));
 
-	tls = xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table));
+	tls = xcalloc(DEFAULT_STACK_TABLE_SIZE, sizeof(*tls));
+#ifndef HASHTABLE_STACK_SWITCHING
+	tls[0] = (uintptr_t)get_rstk;
+#endif
 	asm ("msr	ctpidr_el0, %0" :: "C" (tls));
 
 	_thr_thread_entry(curthread);
@@ -302,7 +360,7 @@ tramp_pg_create(struct tramp_pg **out)
 }
 
 uintptr_t
-tramp_pgs_append(uintptr_t data, const Obj_Entry *dst)
+tramp_pgs_append(uintptr_t target, const Obj_Entry *dst)
 {
 	static struct tramp_pgs pgs = SLIST_HEAD_INITIALIZER(pgs);
 
@@ -328,7 +386,7 @@ start:
 		goto retry;
 
 	const struct tramp *template;
-	if (cheri_getperm(data) & CHERI_PERM_EXECUTIVE)
+	if (cheri_getperm(target) & CHERI_PERM_EXECUTIVE)
 		template = template_exe;
 	else
 		template = templte_res;
@@ -344,9 +402,14 @@ start:
 	// and invalidate the i-cache. See https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/caches-and-self-modifying-code
 	__clear_cache(&t->padding, (char *)t + len);
 
-	t->data = data;
+	t->target = target;
+#ifdef HASHTABLE_STACK_SWITCHING
 	t->get_rstk_cap = get_rstk;
 	t->dst_obj = dst;
+#else
+	if (dst)
+		t->compart_id = dst->compart_id;
+#endif
 
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
 	return cheri_sealentry((uintptr_t)t->code);
@@ -1013,8 +1076,13 @@ allocate_initial_tls(Obj_Entry *objs)
 {
 
 #ifdef COMPARTMENTALISATION
-	asm ("msr	ctpidr_el0, %0\n" :: "C" (xcalloc(DEFAULT_SIZE, sizeof(struct tramp_stk_table))));
+	tramp_stk_table tls = xcalloc(DEFAULT_STACK_TABLE_SIZE, sizeof(*tls));
+#ifndef HASHTABLE_STACK_SWITCHING
+	tls[0] = (uintptr_t)get_rstk;
 #endif
+	asm ("msr	ctpidr_el0, %0\n" :: "C" (tls));
+#endif
+
 	/*
 	* Fix the size of the static TLS block by using the maximum
 	* offset allocated so far and adding a bit for dynamic modules to

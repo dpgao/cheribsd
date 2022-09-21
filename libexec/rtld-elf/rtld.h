@@ -84,6 +84,12 @@ extern size_t tls_static_space;
 extern Elf_Addr tls_dtv_generation;
 extern int tls_max_index;
 
+#ifdef COMPARTMENTALISATION
+#ifndef HASHTABLE_STACK_SWITCHING
+extern uint32_t compart_max_index;
+#endif
+#endif
+
 extern int npagesizes;
 extern size_t *pagesizes;
 extern size_t page_size;
@@ -301,6 +307,9 @@ typedef struct Struct_Obj_Entry {
 #ifdef COMPARTMENTALISATION
     SLIST_HEAD(, Struct_Stack_Entry) stacks; /* List of object's per-thread stacks */
     void *stackslock;
+#ifndef HASHTABLE_STACK_SWITCHING
+    uint32_t compart_id;
+#endif
 #endif
 
     void* init_ptr;		/* Initialization function to call */
@@ -440,9 +449,13 @@ typedef struct Struct_SymLook {
 
 #ifdef COMPARTMENTALISATION
 struct tramp {
-	uintptr_t data;
+	uintptr_t target;
+#ifdef HASHTABLE_STACK_SWITCHING
 	const void *get_rstk_cap;
 	const void *dst_obj;
+#else
+	uint32_t compart_id;
+#endif
 	char padding;
 	const char code[] __attribute__((cheri_no_subobject_bounds));
 };

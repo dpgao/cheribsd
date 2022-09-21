@@ -621,12 +621,23 @@ ENTRY(_rtld_longjmp)
 1:	ret
 END(_rtld_longjmp)
 
+#ifdef HASHTABLE_STACK_SWITCHING
+
 .section	tramp_template_exe,"a"
 .p2align	4
-data_cap_exe:
+target_cap_exe:
 	.chericap	0
 	.chericap	0
 	.chericap	0
+
+#else
+
+.section	tramp_template_exe,"a"
+.p2align	4
+target_cap_exe:
+	.chericap	0
+	.word		0
+#endif
 
 	// If caller is Restricted, save its rcsp in two places
 	// 1. The bottom of itself
@@ -639,10 +650,11 @@ data_cap_exe:
 	scvalue	c11, c10, x11
 	str	c10, [c11, #-CAP_WIDTH]
 	str	c10, [csp, #-CAP_WIDTH]
+
 1:	mov	c10, csp
 	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
 
-	ldr	c10, data_cap_exe
+	ldr	c10, target_cap_exe
 	blr	c10
 
 	// If caller is Restricted, restore to its saved rcsp
@@ -657,9 +669,11 @@ data_cap_exe:
 
 1:	retr	c30
 
+#ifdef HASHTABLE_STACK_SWITCHING
+
 .section	tramp_template_res,"a"
 .p2align	4
-data_cap:
+target_cap:
 	.chericap	0
 get_rstk:
 	.chericap	0
@@ -677,6 +691,7 @@ dst_obj:
 	scvalue	c11, c10, x11
 	str	c10, [c11, #-CAP_WIDTH]
 	str	c10, [csp, #-CAP_WIDTH]
+
 1:	mov	c10, csp
 	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
 
@@ -699,7 +714,7 @@ dst_obj:
 
 4:	ldr	c16, [c16, #-CAP_WIDTH]
 	msr	RCSP_EL0, c16
-	ldr	c10, data_cap
+	ldr	c10, target_cap
 	blrr	c10
 
 	// Callee's saved rcsp may have changed during the call
@@ -758,4 +773,87 @@ dst_obj:
 	ldp	c0, c1, [csp], #(5 * CAP_WIDTH * 2)
 
 	b	7b
+
+#else
+
+.section	tramp_template_res,"a"
+.p2align	4
+target_cap:
+	.chericap	0
+dst_obj:
+	.word		0
+
+	// If caller is Restricted, save its rcsp in two places
+	// 1. The bottom of itself
+	// 2. The top of the Executive stack
+	gcperm	x10, c30
+	tbnz	x10, #1, 1f
+
+	mrs	c10, RCSP_EL0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
+	str	c10, [csp, #-CAP_WIDTH]
+
+1:	mov	c10, csp
+	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
+
+	// Callee is Restricted, so switch to its saved rcsp
+	// at the bottom of itself
+4:	ldr	w10, dst_obj				// w10 = index
+	mrs	c11, ctpidr_el0				// c11 = table
+	gclen	x12, c11				// x12 = len(table)
+	cmp	x12, x10, lsl #4			// if (len(table) >= index)
+	b.ls	2f					// goto 2f
+
+	ldr	c12, [c11, w10, uxtw #4]		// c12 = table[index]
+	cbz	x12, 2f					// if (!table[index]) goto 2f
+
+	ldr	c12, [c12, #-CAP_WIDTH]
+	ldr	c11, target_cap
+	msr	rcsp_el0, c12
+	blrr	c11
+
+	// Callee's saved rcsp may have changed during the call
+	// (e.g. because it called into another compartment)
+	// We restore it to the correct value here
+	mrs	c10, RCSP_EL0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
+
+	// If caller is Restricted, restore to its saved rcsp
+	// at the top of the Executive stack
+	ldr	c10, [csp]
+	mov	csp, c10
+	ldp	c30, c10, [csp, #-(CAP_WIDTH * 2)]
+	gcperm	x11, c30
+	tbnz	x11, #1, 3f
+
+	msr	RCSP_EL0, c10
+
+3:	retr	c30
+
+2:	stp	c8, c9, [csp, #-(1 * CAP_WIDTH * 2)]
+	stp	c6, c7, [csp, #-(2 * CAP_WIDTH * 2)]
+	stp	c4, c5, [csp, #-(3 * CAP_WIDTH * 2)]
+	stp	c2, c3, [csp, #-(4 * CAP_WIDTH * 2)]
+	stp	c0, c1, [csp, #-(5 * CAP_WIDTH * 2)]!
+
+	mov	w0, w10					// w0 = index
+	mov	c1, c11					// c1 = table
+	ldr	c2, target_cap				// c2 = data
+
+	ldr	c3, [c11]
+	blr	c3
+
+	ldp	c8, c9, [csp, #(4 * CAP_WIDTH * 2)]
+	ldp	c6, c7, [csp, #(3 * CAP_WIDTH * 2)]
+	ldp	c4, c5, [csp, #(2 * CAP_WIDTH * 2)]
+	ldp	c2, c3, [csp, #(1 * CAP_WIDTH * 2)]
+	ldp	c0, c1, [csp], #(5 * CAP_WIDTH * 2)
+
+	b	4b
+#endif
+
 #endif
