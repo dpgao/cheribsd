@@ -107,3 +107,16 @@ __makecontext(ucontext_t *ucp, void (*func)(void), int argc, ...)
 	gp->gp_x[20] = (__register_t)ucp;
 #endif
 }
+
+__weak_reference(__rtld_setjmp, _rtld_setjmp);
+
+void *__rtld_setjmp()
+{
+	return NULL;
+}
+
+__weak_reference(__rtld_longjmp, _rtld_longjmp);
+
+void __rtld_longjmp()
+{
+}
