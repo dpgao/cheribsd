@@ -59,8 +59,18 @@ __FBSDID("$FreeBSD$");
 
 static int  create_stack(struct pthread_attr *pattr);
 static void thread_start(struct pthread *curthread);
+
 #ifdef RTLD_SANDBOX
 void (*_rtld_thread_start_tramp(void (*)(struct pthread *)))(struct pthread *);
+
+__weak_reference(__rtld_thread_start_tramp, _rtld_thread_start_tramp);
+
+void (*__rtld_thread_start_tramp(void (*thr_thread_entry)(struct pthread *)))(struct pthread *);
+
+void (*__rtld_thread_start_tramp(void (*thr_thread_entry)(struct pthread *)))(struct pthread *)
+{
+	return thr_thread_entry;
+}
 #endif
 
 __weak_reference(_pthread_create, pthread_create);
