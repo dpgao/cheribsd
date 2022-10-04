@@ -58,19 +58,12 @@ __FBSDID("$FreeBSD$");
 #include "thr_private.h"
 
 static int  create_stack(struct pthread_attr *pattr);
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+void thread_start(struct pthread *curthread);
+__weak_reference(thread_start, _rtld_thread_start);
+void _rtld_thread_start(struct pthread *);
+#else
 static void thread_start(struct pthread *curthread);
-
-#ifdef RTLD_SANDBOX
-void (*_rtld_thread_start_tramp(void (*)(struct pthread *)))(struct pthread *);
-
-__weak_reference(__rtld_thread_start_tramp, _rtld_thread_start_tramp);
-
-void (*__rtld_thread_start_tramp(void (*thr_thread_entry)(struct pthread *)))(struct pthread *);
-
-void (*__rtld_thread_start_tramp(void (*thr_thread_entry)(struct pthread *)))(struct pthread *)
-{
-	return thr_thread_entry;
-}
 #endif
 
 __weak_reference(_pthread_create, pthread_create);
@@ -179,8 +172,8 @@ _pthread_create(pthread_t * __restrict thread,
 		locked = 1;
 	} else
 		locked = 0;
-#ifdef RTLD_SANDBOX
-	param.start_func = (void (*)(void *)) _rtld_thread_start_tramp(thread_start);
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+	param.start_func = (void (*)(void *)) _rtld_thread_start;
 #else
 	param.start_func = (void (*)(void *)) thread_start;
 #endif
@@ -284,7 +277,11 @@ create_stack(struct pthread_attr *pattr)
 	return (ret);
 }
 
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+void
+#else
 static void
+#endif
 thread_start(struct pthread *curthread)
 {
 	sigset_t set;

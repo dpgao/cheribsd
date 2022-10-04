@@ -265,7 +265,7 @@ map_object(int fd, const char *path, const struct stat *sb, const char* main_pat
 	    base_addr, mapsize, PROT_NONE | PROT_MAX(_PROT_ALL), base_flags);
     mapbase = mmap(base_addr, mapsize, PROT_NONE | PROT_MAX(_PROT_ALL),
 	base_flags, -1, 0);
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
     mapbase = cheri_clearperm(mapbase, CHERI_PERM_EXECUTIVE);
 #endif
     if (mapbase == MAP_FAILED) {
@@ -413,9 +413,9 @@ map_object(int fd, const char *path, const struct stat *sb, const char* main_pat
 	obj->tlsinitsize = phtls->p_filesz;
 	obj->tlsinit = mapbase + phtls->p_vaddr;
     }
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 #ifndef HASHTABLE_STACK_SWITCHING
-    obj->compart_id = compart_max_index++;
+    obj->compart_id = ++compart_max_index;
 #endif
 #endif
     obj->stack_flags = stack_flags;
@@ -598,7 +598,7 @@ obj_new(void)
     STAILQ_INIT(&obj->dldags);
     STAILQ_INIT(&obj->dagmembers);
     STAILQ_INIT(&obj->names);
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
     SLIST_INIT(&obj->stacks);
     obj->stackslock = lockinfo.lock_create();
 #endif

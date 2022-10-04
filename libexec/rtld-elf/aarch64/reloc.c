@@ -36,6 +36,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/types.h>
 
 #include <stdlib.h>
+#include <ucontext.h>
 
 #include "debug.h"
 #include "rtld.h"
@@ -168,36 +169,59 @@ _rtld_relocate_nonplt_self(Elf_Dyn *dynp, Elf_Auxinfo *aux)
 }
 #endif /* __CHERI_PURE_CAPABILITY__ */
 
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+
+void _rtld_thread_start(struct pthread *);
+void _rtld_sighandler(int, siginfo_t *, void *);
+
+struct tramp {
+	uintptr_t target;
+#ifdef HASHTABLE_STACK_SWITCHING
+	const void *get_rstk_cap;
+	const void *dst_obj;
+#else
+	uint32_t compart_id;
+#endif
+	char padding;
+	const char code[] __attribute__((cheri_no_subobject_bounds));
+};
+
+struct tramp_pg {
+	struct tramp *cursor;		/* Points to start of unused space */
+	SLIST_ENTRY(tramp_pg) entries;	/* Points to start of next page */
+	struct tramp trampolines[];	/* Points to start of trampolines */
+};
+
+SLIST_HEAD(tramp_pgs, tramp_pg);
 
 #ifdef HASHTABLE_STACK_SWITCHING
 
 typedef struct {
-	vaddr_t key;
+	ptraddr_t key;
 	void *stk;
-} *tramp_stk_table;
+} *tramp_stk_table_t;
 
 #define	KEY_ALIGNMENT 4
 #define	DEFAULT_FLAG_WIDTH 1
 #define DEFAULT_STACK_TABLE_SIZE (1 << DEFAULT_FLAG_WIDTH)
 
 static void
-get_rstk(tramp_stk_table table, vaddr_t flags, Obj_Entry *dst, tramp_stk_table cur)
+get_rstk(tramp_stk_table_t table, ptraddr_t flags, Obj_Entry *dst, tramp_stk_table_t cur)
 {
 #define HASH_KEY(key, width) ((key >> KEY_ALIGNMENT) & ((DEFAULT_STACK_TABLE_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
 
-	vaddr_t key = cheri_getaddress(dst);
+	ptraddr_t key = (ptraddr_t)dst;
 
 	if (cur->key) {
 
-		vaddr_t lim;
+		ptraddr_t lim;
 		asm ("gclim	%0, %1" : "=r" (lim) : "C" (table));
 
 		size_t old_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
 
 		flags |= flags + 1;
 		size_t new_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
-		tramp_stk_table new_t = xcalloc(new_len, sizeof(*new_t));
+		tramp_stk_table_t new_t = xcalloc(new_len, sizeof(*new_t));
 
 		asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
 
@@ -249,14 +273,14 @@ get_rstk(tramp_stk_table table, vaddr_t flags, Obj_Entry *dst, tramp_stk_table c
 	}
 }
 
-#else
+#else /* ! HASHTABLE_STACK_SWITCHING */
 
 #define DEFAULT_STACK_TABLE_SIZE 2
 
-typedef uintptr_t *tramp_stk_table;
+typedef uintptr_t *tramp_stk_table_t;
 
 static void
-get_rstk(uint32_t index, tramp_stk_table table, void *target)
+get_rstk(uint32_t index, tramp_stk_table_t table, void *target)
 {
 	size_t len = cheri_getlen(table) / sizeof(*table);
 
@@ -291,9 +315,10 @@ get_rstk(uint32_t index, tramp_stk_table table, void *target)
 	} else {
 
 		size_t new_len = len * 2;
-		tramp_stk_table new_t = xcalloc(new_len, sizeof(*new_t));
+		tramp_stk_table_t new_t = xcalloc(new_len, sizeof(*new_t));
 		if (!new_t)
 			rtld_die();
+		assert(cheri_getlen(new_t) / sizeof(*new_t) == new_len);
 
 		for (size_t i = 0; i < len; ++i)
 			new_t[i] = table[i];
@@ -305,11 +330,12 @@ get_rstk(uint32_t index, tramp_stk_table table, void *target)
 
 #endif
 
-static void (*_thr_thread_entry)(struct pthread *);
+static void (*thr_thread_start)(struct pthread *);
 
-static void _rtld_thread_start(struct pthread *curthread)
+void
+_rtld_thread_start(struct pthread *curthread)
 {
-	tramp_stk_table tls;
+	tramp_stk_table_t tls;
 	asm ("mrs	%0, ctpidr_el0" : "=C" (tls));
 	asm ("msr	rctpidr_el0, %0" :: "C" (tls));
 
@@ -319,16 +345,42 @@ static void _rtld_thread_start(struct pthread *curthread)
 #endif
 	asm ("msr	ctpidr_el0, %0" :: "C" (tls));
 
-	_thr_thread_entry(curthread);
+	thr_thread_start(curthread);
 }
 
 void
-(*_rtld_thread_start_tramp(void (*thr_thread_entry)(struct pthread *)))(struct pthread *)
+_rtld_thread_start_init(void (*p)(struct pthread *))
 {
-	if (!_thr_thread_entry) {
-		_thr_thread_entry = (void *)tramp_pgs_append((uintptr_t)thr_thread_entry, obj_from_addr(thr_thread_entry));
-	}
-	return _rtld_thread_start;
+	assert(!(cheri_getperm(p) & CHERI_PERM_EXECUTIVE));
+	assert(!thr_thread_start);
+	thr_thread_start = (void *)tramp_pgs_append((uintptr_t)p, obj_from_addr(p));
+}
+
+static void (*thr_sighandler)(int, siginfo_t *, void *);
+
+void
+_rtld_sighandler(int sig, siginfo_t *info, void *_ucp)
+{
+	uintptr_t csp, rcsp;
+	ucontext_t *ucp = _ucp;
+
+	csp = ucp->uc_mcontext.mc_capregs.cap_sp;
+	asm ("mrs	%0, rcsp_el0" : "=C" (rcsp));
+	ucp->uc_mcontext.mc_capregs.cap_sp = rcsp;
+
+	thr_sighandler(sig, info, ucp);
+
+	rcsp = ucp->uc_mcontext.mc_capregs.cap_sp;
+	asm ("msr	rcsp_el0, %0" :: "C" (rcsp));
+	ucp->uc_mcontext.mc_capregs.cap_sp = csp;
+}
+
+void
+_rtld_sighandler_init(void *p)
+{
+	assert(!(cheri_getperm(p) & CHERI_PERM_EXECUTIVE));
+	assert(!thr_sighandler);
+	thr_sighandler = (void *)tramp_pgs_append((uintptr_t)p, obj_from_addr(p));
 }
 
 static void *
@@ -337,11 +389,11 @@ partition(struct tramp **inout, size_t len)
 	void *hi = *inout;
 	void *lo = cheri_setbounds(hi, len);
 	*inout = lo;
-	vaddr_t top = cheri_gettop(lo);
+	ptraddr_t top = cheri_gettop(lo);
 	size_t rem = cheri_gettop(hi) - top;
-	vaddr_t mask = CHERI_REPRESENTABLE_ALIGNMENT(rem);
-	hi = cheri_setaddress(hi, __align_up(top, mask));
-	return cheri_setbounds(hi, __align_down(rem, mask));
+	ptraddr_t alignment = CHERI_REPRESENTABLE_ALIGNMENT(rem);
+	hi = cheri_setaddress(hi, __align_up(top, alignment));
+	return cheri_setbounds(hi, __align_down(rem, alignment));
 }
 
 static int
@@ -676,7 +728,7 @@ reloc_jmpslots(Obj_Entry *obj, int flags, RtldLockState *lockstate)
 				continue;
 			}
 			target = (uintptr_t)make_function_pointer(def, defobj);
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 			target = tramp_pgs_append(target, defobj);
 #endif
 			reloc_jmpslot(where, target, defobj, obj,
@@ -733,7 +785,7 @@ reloc_iresolve_one(Obj_Entry *obj, const Elf_Rela *rela,
 	ptr = (uintptr_t)(obj->relocbase + rela->r_addend);
 #endif
 	lock_release(rtld_bind_lock, lockstate);
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	ptr = tramp_pgs_append(ptr, obj);
 #endif
 	target = call_ifunc_resolver(ptr);
@@ -1075,8 +1127,8 @@ void
 allocate_initial_tls(Obj_Entry *objs)
 {
 
-#ifdef RTLD_SANDBOX
-	tramp_stk_table tls = xcalloc(DEFAULT_STACK_TABLE_SIZE, sizeof(*tls));
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+	tramp_stk_table_t tls = xcalloc(DEFAULT_STACK_TABLE_SIZE, sizeof(*tls));
 #ifndef HASHTABLE_STACK_SWITCHING
 	tls[0] = (uintptr_t)get_rstk;
 #endif
@@ -1091,11 +1143,7 @@ allocate_initial_tls(Obj_Entry *objs)
 	tls_static_space = tls_last_offset + tls_last_size +
 	    RTLD_STATIC_TLS_EXTRA;
 
-#ifdef RTLD_SANDBOX
-	asm ("msr	rctpidr_el0, %0\n" :: "C" (allocate_tls(objs, NULL, TLS_TCB_SIZE, TLS_TCB_ALIGN)));
-#else
 	_tcb_set(allocate_tls(objs, NULL, TLS_TCB_SIZE, TLS_TCB_ALIGN));
-#endif
 }
 
 void *
@@ -1103,10 +1151,6 @@ __tls_get_addr(tls_index* ti)
 {
 	uintptr_t **dtvp;
 
-#ifdef RTLD_SANDBOX
-	asm ("mrs	%0, rctpidr_el0" : "=C" (dtvp));
-#else
 	dtvp = &_tcb_get()->tcb_dtv;
-#endif
 	return (tls_get_addr_common(dtvp, ti->ti_module, ti->ti_offset));
 }

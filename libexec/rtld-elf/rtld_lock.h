@@ -74,12 +74,9 @@ void _rtld_thread_init(struct RtldLockInfo *) __exported;
 void _rtld_atfork_pre(int *) __exported;
 void _rtld_atfork_post(int *) __exported;
 
-#ifdef RTLD_SANDBOX
-struct tramp_delegate;
-struct tramp_stk_table;
-void _rtld_tramp_stks_funcs_init(struct tramp_delegate *fs) __exported;
-
-void (*_rtld_thread_start_tramp(void (*)(struct pthread *)))(struct pthread *);
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+void _rtld_thread_start_init(void (*)(struct pthread *));
+void _rtld_sighandler_init(void *);
 #endif
 
 #endif /* IN_RTLD || PTHREAD_KERNEL */

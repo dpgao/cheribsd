@@ -192,6 +192,12 @@ _rtld_thread_init(void *li __unused)
 	/* Do nothing when linked statically. */
 }
 
+#pragma weak _rtld_thread_start_init
+void
+_rtld_thread_start_init(void (*p)(struct pthread *))
+{
+}
+
 #ifndef IN_LIBDL
 static pthread_once_t dl_phdr_info_once = PTHREAD_ONCE_INIT;
 static struct dl_phdr_info phdr_info;

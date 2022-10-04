@@ -74,8 +74,8 @@ ENTRY(.rtld_start)
 	ldr	c2, [csp, #16]			/* Load obj_main */
 	mov	c0, c19				/* Restore aux */
 	mov	csp, c20			/* Restore the stack pointer */
-#ifdef RTLD_SANDBOX
-	blrr	c8				/* Jump to the entry point */
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+	blr	c8				/* Jump to the entry point */
 #else
 	br      c8                              /* Jump to the entry point */
 #endif
@@ -105,7 +105,7 @@ END(.rtld_start)
  * x17 = &_rtld_bind_start
  */
 ENTRY(_rtld_bind_start)
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	/* Calls to _rtld_bind_start does not go through the trampoline
 	 * because _rtld_bind_start never returns, which would break the
 	 * trampoline's invariant.
@@ -121,7 +121,7 @@ ENTRY(_rtld_bind_start)
 #endif
 
 	/* Save frame pointer and SP */
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	stp	PTR(29), PTR(17), [PTRN(sp), #-(PTR_WIDTH * 2)]!
 	mov	PTR(29), PTRN(sp)
 	.cfi_def_cfa PTR(29), (PTR_WIDTH * 2)
@@ -188,14 +188,14 @@ ENTRY(_rtld_bind_start)
 	ldp	CAP(0), CAP(1), [PTRN(sp)], #(CAP_WIDTH * 2)
 
 	/* Restore frame pointer */
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	ldp	PTR(29), PTR(17), [PTRN(sp)], #(PTR_WIDTH * 2)
 #else
 	ldp	PTR(29), PTR(zr), [PTRN(sp)], #(PTR_WIDTH * 2)
 #endif
 
 	 /* Restore link register saved by the plt code */
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	ldp	czr, c30, [c17], #(PTR_WIDTH * 2)
 	msr	RCSP_EL0, c17
 #else
@@ -221,7 +221,7 @@ ENTRY(_rtld_tlsdesc_static)
 	ldp	x0, x1, [c0, #16]
 	add	c0, c2, x0
 	scbnds	c0, c0, x1
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	retr	c30
 #else
 	ret
@@ -240,7 +240,7 @@ END(_rtld_tlsdesc_static)
 ENTRY(_rtld_tlsdesc_undef)
 #ifdef __CHERI_PURE_CAPABILITY__
 	ldr	x0, [c0, #16]
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	retr	c30
 #else
 	ret
@@ -293,7 +293,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 	/* Restore registers and return */
 	ldp	 c3,  c4, [csp], #32
 	.cfi_adjust_cfa_offset 	-2 * 16
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	retr	c30
 #else
 	ret
@@ -367,7 +367,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 	/* Restore fast path registers and return */
 	ldp	 c3,  c4, [csp], #32
 	.cfi_adjust_cfa_offset 	-2 * 16
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	retr	c30
 #else
 	ret
@@ -472,7 +472,7 @@ ENTRY(_rtld_tlsdesc_dynamic)
 #endif /* defined(__CHERI_PURE_CAPABILITY__) */
 END(_rtld_tlsdesc_dynamic)
 
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 ENTRY(_rtld_setjmp)
 	/*
 	Before setjmp is called, the top of the Executive stack contains:

@@ -84,7 +84,7 @@ extern size_t tls_static_space;
 extern Elf_Addr tls_dtv_generation;
 extern int tls_max_index;
 
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 #ifndef HASHTABLE_STACK_SWITCHING
 extern uint32_t compart_max_index;
 #endif
@@ -145,7 +145,7 @@ typedef struct Struct_Name_Entry {
     char   name[1];
 } Name_Entry;
 
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 struct Struct_Stack_Entry {
     SLIST_ENTRY(Struct_Stack_Entry) link;
     void *stack;
@@ -304,7 +304,7 @@ typedef struct Struct_Obj_Entry {
     Ver_Entry *vertab;		/* Versions required /defined by this object */
     int vernum;			/* Number of entries in vertab */
 
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
     SLIST_HEAD(, Struct_Stack_Entry) stacks; /* List of object's per-thread stacks */
     void *stackslock;
 #ifndef HASHTABLE_STACK_SWITCHING
@@ -447,28 +447,6 @@ typedef struct Struct_SymLook {
     struct Struct_RtldLockState *lockstate;
 } SymLook;
 
-#ifdef RTLD_SANDBOX
-struct tramp {
-	uintptr_t target;
-#ifdef HASHTABLE_STACK_SWITCHING
-	const void *get_rstk_cap;
-	const void *dst_obj;
-#else
-	uint32_t compart_id;
-#endif
-	char padding;
-	const char code[] __attribute__((cheri_no_subobject_bounds));
-};
-
-struct tramp_pg {
-	struct tramp *cursor;		/* Points to start of unused space */
-	SLIST_ENTRY(tramp_pg) entries;	/* Points to start of next page */
-	struct tramp trampolines[];	/* Points to start of trampolines */
-};
-
-SLIST_HEAD(tramp_pgs, tramp_pg);
-#endif
-
 void _rtld_error(const char *, ...) __printflike(1, 2) __exported;
 void rtld_die(void) __dead2;
 #define rtld_fatal(args...)	do { _rtld_error(args); rtld_die(); } while (0)
@@ -530,7 +508,7 @@ __END_DECLS
 #endif
 
 #ifndef make_rtld_function_pointer
-#ifdef RTLD_SANDBOX
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 #define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func), NULL))
 #else
 #define make_rtld_function_pointer(target_func)	(&target_func)

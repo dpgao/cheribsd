@@ -67,7 +67,13 @@ __libc_sigaction_slot(int signo)
 	return (&_thr_sigact[signo - 1]);
 }
 
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+void thr_sighandler(int, siginfo_t *, void *);
+__weak_reference(thr_sighandler, _rtld_sighandler);
+void _rtld_sighandler(int, siginfo_t *, void *);
+#else
 static void thr_sighandler(int, siginfo_t *, void *);
+#endif
 static void handle_signal(struct sigaction *, int, siginfo_t *, ucontext_t *);
 static void check_deferred_signal(struct pthread *);
 static void check_suspend(struct pthread *);
@@ -208,7 +214,11 @@ typedef void (*ohandler)(int sig, int code, struct sigcontext *scp,
 /*
  * The signal handler wrapper is entered with all signal masked.
  */
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+void
+#else
 static void
+#endif
 thr_sighandler(int sig, siginfo_t *info, void *_ucp)
 {
 	struct pthread *curthread;
@@ -316,7 +326,11 @@ handle_signal(struct sigaction *actp, int sig, siginfo_t *info, ucontext_t *ucp)
 	/* reschedule cancellation */
 	check_cancel(curthread, &uc2);
 	errno = err;
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+	memcpy(ucp, &uc2, sizeof(*ucp));
+#else
 	syscall(SYS_sigreturn, &uc2);
+#endif
 }
 
 void
@@ -478,7 +492,11 @@ _thr_signal_init(int dlopened)
 			remove_thr_signals(&usa->sigact.sa_mask);
 			nact.sa_flags &= ~SA_NODEFER;
 			nact.sa_flags |= SA_SIGINFO;
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+			nact.sa_sigaction = _rtld_sighandler;
+#else
 			nact.sa_sigaction = thr_sighandler;
+#endif
 			nact.sa_mask = _thr_maskset;
 			(void)__sys_sigaction(sig, &nact, NULL);
 		}
@@ -608,7 +626,11 @@ __thr_sigaction(int sig, const struct sigaction *act, struct sigaction *oact)
 			remove_thr_signals(&usa->sigact.sa_mask);
 			newact.sa_flags &= ~SA_NODEFER;
 			newact.sa_flags |= SA_SIGINFO;
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+			newact.sa_sigaction = _rtld_sighandler;
+#else
 			newact.sa_sigaction = thr_sighandler;
+#endif
 			newact.sa_mask = _thr_maskset; /* mask all signals */
 		}
 		ret = __sys_sigaction(sig, &newact, &oldact);
