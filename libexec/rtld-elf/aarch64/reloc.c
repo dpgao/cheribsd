@@ -215,13 +215,16 @@ get_rstk(tramp_stk_table_t table, ptraddr_t flags, Obj_Entry *dst, tramp_stk_tab
 	if (cur->key) {
 
 		ptraddr_t lim;
+		size_t old_len, new_len, offset;
+		tramp_stk_table_t new_t;
+
 		asm ("gclim	%0, %1" : "=r" (lim) : "C" (table));
 
-		size_t old_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+		old_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
 
 		flags |= flags + 1;
-		size_t new_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
-		tramp_stk_table_t new_t = xcalloc(new_len, sizeof(*new_t));
+		new_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+		new_t = xcalloc(new_len, sizeof(*new_t));
 
 		asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
 
@@ -229,7 +232,7 @@ get_rstk(tramp_stk_table_t table, ptraddr_t flags, Obj_Entry *dst, tramp_stk_tab
 			if (!table[i].key)
 				continue;
 
-			size_t offset = HASH_KEY(key, flags);
+			offset = HASH_KEY(key, flags);
 
 			// Guaranteed to terminate
 			while (new_t[offset].key) {
@@ -245,12 +248,16 @@ get_rstk(tramp_stk_table_t table, ptraddr_t flags, Obj_Entry *dst, tramp_stk_tab
 
 	} else {
 
-		size_t size = 0x40000 * getpagesize();
-		char *stk = mmap(NULL,
-				 size,
-				 PROT_READ | PROT_WRITE,
-				 MAP_ANON | MAP_PRIVATE | MAP_STACK,
-				 -1, 0);
+		size_t size;
+		char *stk;
+		struct Struct_Stack_Entry *entry;
+
+		size = 0x40000 * getpagesize();
+		stk = mmap(NULL,
+			   size,
+			   PROT_READ | PROT_WRITE,
+			   MAP_ANON | MAP_PRIVATE | MAP_STACK,
+			   -1, 0);
 		if (stk == MAP_FAILED)
 			rtld_die();
 		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
@@ -264,7 +271,7 @@ get_rstk(tramp_stk_table_t table, ptraddr_t flags, Obj_Entry *dst, tramp_stk_tab
 		cur->key = key;
 		cur->stk = stk;
 
-		struct Struct_Stack_Entry *entry = xmalloc(sizeof(*entry));
+		entry = xmalloc(sizeof(*entry));
 		entry->stack = stk;
 
 		lockinfo.wlock_acquire(dst->stackslock);
@@ -286,12 +293,17 @@ get_rstk(uint32_t index, tramp_stk_table_t table, void *target)
 
 	if (index < len) {
 
-		size_t size = 0x40000 * getpagesize();
-		char *stk = mmap(NULL,
-				 size,
-				 PROT_READ | PROT_WRITE,
-				 MAP_ANON | MAP_PRIVATE | MAP_STACK,
-				 -1, 0);
+		size_t size;
+		char *stk;
+		struct Struct_Stack_Entry *entry;
+		Obj_Entry *dst;
+
+		size = 0x40000 * getpagesize();
+		stk = mmap(NULL,
+			   size,
+			   PROT_READ | PROT_WRITE,
+			   MAP_ANON | MAP_PRIVATE | MAP_STACK,
+			   -1, 0);
 		if (stk == MAP_FAILED)
 			rtld_die();
 		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
@@ -304,18 +316,21 @@ get_rstk(uint32_t index, tramp_stk_table_t table, void *target)
 
 		table[index] = (uintptr_t)stk;
 
-		struct Struct_Stack_Entry *entry = xmalloc(sizeof(*entry));
+		entry = xmalloc(sizeof(*entry));
 		entry->stack = stk;
 
-		Obj_Entry *dst = obj_from_addr(target);
+		dst = obj_from_addr(target);
 		lockinfo.wlock_acquire(dst->stackslock);
 		SLIST_INSERT_HEAD(&dst->stacks, entry, link);
 		lockinfo.lock_release(dst->stackslock);
 
 	} else {
 
-		size_t new_len = len * 2;
-		tramp_stk_table_t new_t = xcalloc(new_len, sizeof(*new_t));
+		size_t new_len;
+		tramp_stk_table_t new_t;
+
+		new_len = len * 2;
+		new_t = xcalloc(new_len, sizeof(*new_t));
 		if (!new_t)
 			rtld_die();
 		assert(cheri_getlen(new_t) / sizeof(*new_t) == new_len);
@@ -388,10 +403,13 @@ partition(struct tramp **inout, size_t len)
 {
 	void *hi = *inout;
 	void *lo = cheri_setbounds(hi, len);
+	ptraddr_t top, alignment;
+	size_t rem;
+
 	*inout = lo;
-	ptraddr_t top = cheri_gettop(lo);
-	size_t rem = cheri_gettop(hi) - top;
-	ptraddr_t alignment = CHERI_REPRESENTABLE_ALIGNMENT(rem);
+	top = cheri_gettop(lo);
+	rem = cheri_gettop(hi) - top;
+	alignment = CHERI_REPRESENTABLE_ALIGNMENT(rem);
 	hi = cheri_setaddress(hi, __align_up(top, alignment));
 	return cheri_setbounds(hi, __align_down(rem, alignment));
 }
@@ -399,11 +417,12 @@ partition(struct tramp **inout, size_t len)
 static int
 tramp_pg_create(struct tramp_pg **out)
 {
-	struct tramp_pg *p = mmap(NULL,
-				  getpagesize(),
-				  PROT_READ | PROT_WRITE | PROT_EXEC,
-				  MAP_ANON | MAP_PRIVATE,
-				  -1, 0);
+	struct tramp_pg *p;
+	p = mmap(NULL,
+		 getpagesize(),
+		 PROT_READ | PROT_WRITE | PROT_EXEC,
+		 MAP_ANON | MAP_PRIVATE,
+		 -1, 0);
 	if (p == MAP_FAILED)
 		rtld_die();
 	p->cursor = p->trampolines;
@@ -422,6 +441,10 @@ tramp_pgs_append(uintptr_t target, const Obj_Entry *dst)
 	extern const struct tramp __start_tramp_template_res;
 	static const struct tramp *templte_res = &__start_tramp_template_res;
 
+	const struct tramp *template;
+	struct tramp *t;
+	size_t len;
+
 	int n_retry = 0;
 	struct tramp_pg *pg = SLIST_FIRST(&pgs);
 	goto start;
@@ -437,14 +460,13 @@ start:
 	if (!pg)
 		goto retry;
 
-	const struct tramp *template;
 	if (cheri_getperm(target) & CHERI_PERM_EXECUTIVE)
 		template = template_exe;
 	else
 		template = templte_res;
-	size_t len = cheri_getlen(template);
+	len = cheri_getlen(template);
 
-	struct tramp *t = __align_up(pg->cursor, _Alignof(typeof(*t)));
+	t = __align_up(pg->cursor, _Alignof(typeof(*t)));
 	pg->cursor = partition(&t, len);
 	if (!cheri_gettag(t))
 		goto retry;

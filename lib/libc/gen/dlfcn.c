@@ -198,6 +198,12 @@ _rtld_thread_start_init(void (*p)(struct pthread *))
 {
 }
 
+#pragma weak _rtld_sighandler_init
+void
+_rtld_sighandler_init(void *p)
+{
+}
+
 #ifndef IN_LIBDL
 static pthread_once_t dl_phdr_info_once = PTHREAD_ONCE_INIT;
 static struct dl_phdr_info phdr_info;
