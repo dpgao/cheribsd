@@ -192,17 +192,19 @@ _rtld_thread_init(void *li __unused)
 	/* Do nothing when linked statically. */
 }
 
+#ifdef __CHERI_PURE_CAPABILITY__
 #pragma weak _rtld_thread_start_init
 void
-_rtld_thread_start_init(void (*p)(struct pthread *))
+_rtld_thread_start_init(void (*p)(struct pthread *) __unused)
 {
 }
 
 #pragma weak _rtld_sighandler_init
 void
-_rtld_sighandler_init(void *p)
+_rtld_sighandler_init(void *p __unused)
 {
 }
+#endif
 
 #ifndef IN_LIBDL
 static pthread_once_t dl_phdr_info_once = PTHREAD_ONCE_INIT;

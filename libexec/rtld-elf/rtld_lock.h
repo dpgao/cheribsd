@@ -74,12 +74,12 @@ void _rtld_thread_init(struct RtldLockInfo *) __exported;
 void _rtld_atfork_pre(int *) __exported;
 void _rtld_atfork_post(int *) __exported;
 
-#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+#endif /* IN_RTLD || PTHREAD_KERNEL */
+
+#if defined(__CHERI_PURE_CAPABILITY__)
 void _rtld_thread_start_init(void (*)(struct pthread *));
 void _rtld_sighandler_init(void *);
 #endif
-
-#endif /* IN_RTLD || PTHREAD_KERNEL */
 
 #ifdef IN_RTLD
 
