@@ -85,9 +85,7 @@ extern Elf_Addr tls_dtv_generation;
 extern int tls_max_index;
 
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
-#ifndef HASHTABLE_STACK_SWITCHING
 extern uint32_t compart_max_index;
-#endif
 #endif
 
 extern int npagesizes;
@@ -307,9 +305,7 @@ typedef struct Struct_Obj_Entry {
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
     SLIST_HEAD(, Struct_Stack_Entry) stacks; /* List of object's per-thread stacks */
     void *stackslock;
-#ifndef HASHTABLE_STACK_SWITCHING
     uint32_t compart_id;
-#endif
 #endif
 
     void* init_ptr;		/* Initialization function to call */

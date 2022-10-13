@@ -312,12 +312,10 @@ Elf_Addr tls_dtv_generation = 1;	/* Used to detect when dtv size changes */
 int tls_max_index = 1;		/* Largest module index allocated */
 
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
-#ifndef HASHTABLE_STACK_SWITCHING
 /*
  * Globals for compartmentalisation
  */
 uint32_t compart_max_index; /* Largest compartment index allocated */
-#endif
 #endif
 
 static bool ld_library_path_rpath = false;
@@ -1920,9 +1918,7 @@ digest_phdr(const Elf_Phdr *phdr, int phnum, dlfunc_t entry, const char *path)
 #endif
 
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
-#ifndef HASHTABLE_STACK_SWITCHING
     obj->compart_id = ++compart_max_index;
-#endif
 #endif
 
     obj->entry = entry;
