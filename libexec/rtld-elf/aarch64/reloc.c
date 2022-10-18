@@ -329,7 +329,7 @@ tramp_pg_create(struct tramp_pg **out)
 	if (p == MAP_FAILED)
 		rtld_die();
 	p->cursor = p->trampolines;
-	*out = cheri_setboundsexact(p, offsetof(typeof(*p), trampolines));
+	*out = p;
 	return 0;
 }
 
@@ -377,7 +377,10 @@ start:
 	memcpy(t, template, len);
 	// Arm64's i-cache and d-cache are not coherent. So we need to clean the d-cache
 	// and invalidate the i-cache. See https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/caches-and-self-modifying-code
-	__clear_cache(&t->padding, (char *)t + len);
+	// We derive the start and end addresses from pg so that they are aligned to the
+	// cache-line size, since pg is page aligned.
+	__clear_cache(cheri_copyaddress(pg, t->code),
+		      cheri_copyaddress(pg, (uintptr_t)t + len));
 
 	t->target = target;
 	if (dst)
