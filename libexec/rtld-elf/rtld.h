@@ -505,7 +505,7 @@ __END_DECLS
 
 #ifndef make_rtld_function_pointer
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
-#define make_rtld_function_pointer(target_func)	((void *)tramp_pgs_append((uintptr_t)(target_func), NULL))
+#define make_rtld_function_pointer(target_func)	(tramp_pgs_append((target_func), NULL))
 #else
 #define make_rtld_function_pointer(target_func)	(&target_func)
 #endif

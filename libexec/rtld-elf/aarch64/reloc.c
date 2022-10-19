@@ -175,10 +175,10 @@ void _rtld_thread_start(struct pthread *);
 void _rtld_sighandler(int, siginfo_t *, void *);
 
 struct tramp {
-	uintptr_t target;
+	const void *target;
 	uint32_t compart_id;
 	char padding;
-	const char code[] __attribute__((cheri_no_subobject_bounds));
+	char code[] __attribute__((cheri_no_subobject_bounds));
 };
 
 struct tramp_pg {
@@ -194,7 +194,7 @@ SLIST_HEAD(tramp_pgs, tramp_pg);
 typedef uintptr_t *tramp_stk_table_t;
 
 static void
-get_rstk(uint32_t index, tramp_stk_table_t table, void *target)
+get_rstk(uint32_t index, tramp_stk_table_t table, const void *target)
 {
 	size_t len = cheri_getlen(table) / sizeof(*table);
 
@@ -271,7 +271,7 @@ _rtld_thread_start_init(void (*p)(struct pthread *))
 {
 	assert(!(cheri_getperm(p) & CHERI_PERM_EXECUTIVE));
 	assert(!thr_thread_start);
-	thr_thread_start = (void *)tramp_pgs_append((uintptr_t)p, obj_from_addr(p));
+	thr_thread_start = tramp_pgs_append(p, obj_from_addr(p));
 }
 
 static void (*thr_sighandler)(int, siginfo_t *, void *);
@@ -298,7 +298,7 @@ _rtld_sighandler_init(void *p)
 {
 	assert(!(cheri_getperm(p) & CHERI_PERM_EXECUTIVE));
 	assert(!thr_sighandler);
-	thr_sighandler = (void *)tramp_pgs_append((uintptr_t)p, obj_from_addr(p));
+	thr_sighandler = tramp_pgs_append(p, obj_from_addr(p));
 }
 
 static void *
@@ -333,8 +333,8 @@ tramp_pg_create(struct tramp_pg **out)
 	return 0;
 }
 
-uintptr_t
-tramp_pgs_append(uintptr_t target, const Obj_Entry *dst)
+void *
+tramp_pgs_append(const void *target, const Obj_Entry *dst)
 {
 	static struct tramp_pgs pgs = SLIST_HEAD_INITIALIZER(pgs);
 
@@ -387,7 +387,7 @@ start:
 		t->compart_id = dst->compart_id;
 
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
-	return cheri_sealentry((uintptr_t)t->code);
+	return cheri_sealentry(t->code);
 }
 #endif
 
@@ -652,7 +652,7 @@ reloc_jmpslots(Obj_Entry *obj, int flags, RtldLockState *lockstate)
 			}
 			target = (uintptr_t)make_function_pointer(def, defobj);
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
-			target = tramp_pgs_append(target, defobj);
+			target = (uintptr_t)tramp_pgs_append((const void *)target, defobj);
 #endif
 			reloc_jmpslot(where, target, defobj, obj,
 			    (const Elf_Rel *)rela);
@@ -709,7 +709,7 @@ reloc_iresolve_one(Obj_Entry *obj, const Elf_Rela *rela,
 #endif
 	lock_release(rtld_bind_lock, lockstate);
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
-	ptr = tramp_pgs_append(ptr, obj);
+	ptr = (uintptr_t)tramp_pgs_append((const void *)ptr, obj);
 #endif
 	target = call_ifunc_resolver(ptr);
 	wlock_acquire(rtld_bind_lock, lockstate);

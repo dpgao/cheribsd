@@ -151,10 +151,10 @@ make_data_cap(const Elf_Sym *def, const struct Struct_Obj_Entry *defobj)
 /* TODO: Per-function captable/PLT/FNDESC support */
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 #define call_init_array_pointer(obj, target)				\
-	(((InitArrFunc)tramp_pgs_append((uintptr_t)(target).value, obj))(main_argc, main_argv, environ))
+	(((InitArrFunc)tramp_pgs_append((const void *)(target).value, obj))(main_argc, main_argv, environ))
 
 #define call_fini_array_pointer(obj, target)				\
-	(((InitFunc)tramp_pgs_append((uintptr_t)(target).value, obj))())
+	(((InitFunc)tramp_pgs_append((const void *)(target).value, obj))())
 #else
 #define call_init_array_pointer(obj, target)				\
         (((InitArrFunc)(target).value)(main_argc, main_argv, environ))
@@ -209,7 +209,7 @@ extern void *__tls_get_addr(tls_index *ti);
 #define md_abi_variant_hook(x)
 
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
-uintptr_t tramp_pgs_append(uintptr_t, const Obj_Entry *);
+void *tramp_pgs_append(const void *target, const Obj_Entry *dst);
 #endif
 
 #ifdef __CHERI_PURE_CAPABILITY__
