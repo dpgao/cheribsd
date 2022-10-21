@@ -13,7 +13,8 @@ SUBDIR+=	hybrid \
 SUBDIR+=	purecap \
 		purecap-dynamic \
 		purecap-dynamic-mt \
-		purecap-mt
+		purecap-mt \
+		purecap-dynamic-mt-c18n
 .endif
 
 SUBDIR_PARALLEL=

@@ -128,7 +128,13 @@ sigaltstack_func(int signum __unused)
 }
 
 CHERIBSDTEST(test_signal_sigaltstack,
-    "Check signal handlers use the alternate stack when enabled")
+    "Check signal handlers use the alternate stack when enabled"
+#ifdef CHERIBSD_C18N_TESTS
+,
+    .ct_xfail_reason =
+	"sigaltstack is currently unsupported when c18n is enabled"
+#endif
+)
 {
 	stack_t sigstk;
 	struct sigaction sa;

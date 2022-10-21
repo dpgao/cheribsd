@@ -213,7 +213,7 @@ get_rstk(uint32_t index, tramp_stk_table_t table, const void *target)
 			   -1, 0);
 		if (stk == MAP_FAILED)
 			rtld_die();
-		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
+		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE | CHERI_PERM_SW_VMEM) + size;
 		struct {
 			uint8_t generation;
 			uintptr_t top;
