@@ -632,6 +632,17 @@ ENTRY(_rtld_longjmp)
 1:	ret
 END(_rtld_longjmp)
 
+#ifdef HASHTABLE_STACK_SWITCHING
+
+.section	tramp_template_exe,"a"
+.p2align	4
+target_cap_exe:
+	.chericap	0
+	.chericap	0
+	.chericap	0
+
+#else
+
 #define TRAMP(sym) \
 	.section .rodata; .globl sym; .p2align 4; .type sym,#object; sym:
 
@@ -639,6 +650,7 @@ TRAMP(tramp_template_exe)
 target_cap_exe:
 	.chericap	0
 	.word		0
+#endif
 
 	/*
 	 * If caller is Restricted, save its rcsp in two places
@@ -675,6 +687,113 @@ target_cap_exe:
 1:	retr	c30
 EEND(tramp_template_exe)
 etramp_template_exe:
+
+#ifdef HASHTABLE_STACK_SWITCHING
+
+.section	tramp_template_res,"a"
+.p2align	4
+target_cap:
+	.chericap	0
+get_rstk:
+	.chericap	0
+dst_obj:
+	.chericap	0
+
+	// If caller is Restricted, save its rcsp in two places
+	// 1. The bottom of itself
+	// 2. The top of the Executive stack
+	gcperm	x10, c30
+	tbnz	x10, #1, 1f
+
+	mrs	c10, rcsp_el0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
+	str	c10, [csp, #-CAP_WIDTH]
+
+1:	mov	c10, csp
+	stp	c10, c30, [csp, #-(CAP_WIDTH * 3)]!
+
+	// Callee is Restricted, so switch to its saved rcsp
+	// at the bottom of itself
+#define	KEY_ALIGNMENT 4
+#define	DEFAULT_FLAG_WIDTH 1
+7:	mrs	c10, ctpidr_el0				// c10 = table
+	gcflgs	x11, c10
+	lsr	x11, x11, #(56 - DEFAULT_FLAG_WIDTH - KEY_ALIGNMENT)
+	orr	x11, x11, #(((1 << DEFAULT_FLAG_WIDTH) - 1) << KEY_ALIGNMENT)	// c11 = flag
+
+	ldr	c12, dst_obj				// c12 = key
+	and	x14, x12, x11				// c14 = key & mask
+	add	c13, c10, x14, lsl #1			// c13 = cur = table + (key & mask)
+
+3:	ldp	c15, c16, [c13], #-(CAP_WIDTH * 2)	// k, v = *cur--
+	cmp	x12, x15				// if (k != key) goto 2f
+	b.ne	2f
+
+4:	ldr	c16, [c16, #-CAP_WIDTH]
+	msr	RCSP_EL0, c16
+	ldr	c10, target_cap
+	blrr	c10
+
+	// Callee's saved rcsp may have changed during the call
+	// (e.g. because it called into another compartment)
+	// We restore it to the correct value here
+	mrs	c10, RCSP_EL0
+	gclim	x11, c10
+	scvalue	c11, c10, x11
+	str	c10, [c11, #-CAP_WIDTH]
+
+	// If caller is Restricted, restore to its saved rcsp
+	// at the top of the Executive stack
+	ldr	c10, [csp]
+	mov	csp, c10
+	ldp	c30, c10, [csp, #-(CAP_WIDTH * 2)]
+	gcperm	x11, c30
+	tbnz	x11, #1, 1f
+
+	msr	RCSP_EL0, c10
+
+1:	retr	c30
+
+2:	cbz	x15, 6f					// if (k == 0) goto miss
+	cmp	x13, x10				// if (cur >= table) goto 3b
+	b.hs	3b
+
+	add	c13, c10, x11, lsl #1			// cur = table + flag
+	add	c14, c10, x14, lsl #1			// base = table + (key & mask)
+
+5:	ldp	c15, c16, [c13], #-(CAP_WIDTH * 2)	// k, v = *cur--
+	cmp	x12, x15				// if (k == key) goto 5b
+	b.eq	4b
+
+	cmp	x15, #0					// if (k != 0 && cur > base) goto 5b
+	ccmp	x13, x14, #0, ne
+	b.hi	5b
+
+6:	stp	c8, c9, [csp, #-(1 * CAP_WIDTH * 2)]
+	stp	c6, c7, [csp, #-(2 * CAP_WIDTH * 2)]
+	stp	c4, c5, [csp, #-(3 * CAP_WIDTH * 2)]
+	stp	c2, c3, [csp, #-(4 * CAP_WIDTH * 2)]
+	stp	c0, c1, [csp, #-(5 * CAP_WIDTH * 2)]!
+
+	mov	c0, c10						// c0 = table
+	lsr	x1, x11, #(KEY_ALIGNMENT + DEFAULT_FLAG_WIDTH)	// x1 = real_flag
+	mov	c2, c12						// c2 = key
+	add	c3, c13, #(1 << 5)				// c3 = ++cur
+
+	ldr	c4, get_rstk
+	blr	c4
+
+	ldp	c8, c9, [csp, #(4 * CAP_WIDTH * 2)]
+	ldp	c6, c7, [csp, #(3 * CAP_WIDTH * 2)]
+	ldp	c4, c5, [csp, #(2 * CAP_WIDTH * 2)]
+	ldp	c2, c3, [csp, #(1 * CAP_WIDTH * 2)]
+	ldp	c0, c1, [csp], #(5 * CAP_WIDTH * 2)
+
+	b	7b
+
+#else
 
 TRAMP(tramp_template_res)
 target_cap:
@@ -776,4 +895,6 @@ sztramp_template_exe:
 	.quad	etramp_template_exe - tramp_template_exe
 sztramp_template_res:
 	.quad	etramp_template_res - tramp_template_res
+#endif
+
 #endif

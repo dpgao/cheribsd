@@ -184,6 +184,10 @@ void _rtld_sighandler(int, siginfo_t *, void *);
 
 struct tramp {
 	const void *target;
+#ifdef HASHTABLE_STACK_SWITCHING
+	const void *get_rstk_cap;
+	const void *dst_obj;
+#else
 	uint32_t compart_id;
 	char code[];
 };
@@ -195,6 +199,94 @@ struct tramp_pg {
 };
 
 SLIST_HEAD(tramp_pgs, tramp_pg);
+
+#ifdef HASHTABLE_STACK_SWITCHING
+
+typedef struct {
+	ptraddr_t key;
+	void *stk;
+} *tramp_stk_table_t;
+
+#define	KEY_ALIGNMENT 4
+#define	DEFAULT_FLAG_WIDTH 1
+#define DEFAULT_STACK_TABLE_SIZE (1 << DEFAULT_FLAG_WIDTH)
+
+static void
+get_rstk(tramp_stk_table_t table, ptraddr_t flags, Obj_Entry *dst, tramp_stk_table_t cur)
+{
+#define HASH_KEY(key, width) ((key >> KEY_ALIGNMENT) & ((DEFAULT_STACK_TABLE_SIZE - 1) | ((width) << DEFAULT_FLAG_WIDTH)))
+
+	ptraddr_t key = (ptraddr_t)dst;
+
+	if (cur->key) {
+
+		ptraddr_t lim;
+		size_t old_len, new_len, offset;
+		tramp_stk_table_t new_t;
+
+		asm ("gclim	%0, %1" : "=r" (lim) : "C" (table));
+
+		old_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+
+		flags |= flags + 1;
+		new_len = (flags + 1) << DEFAULT_FLAG_WIDTH;
+		new_t = xcalloc(new_len, sizeof(*new_t));
+
+		asm ("scflgs	%0, %1, %2" : "=C" (new_t) : "C" (new_t), "r" (flags << 56));
+
+		for (size_t i = 0; i < old_len; ++i) {
+			if (!table[i].key)
+				continue;
+
+			offset = HASH_KEY(key, flags);
+
+			// Guaranteed to terminate
+			while (new_t[offset].key) {
+				offset = (offset - 1) & (new_len - 1);
+			}
+
+			new_t[offset].key = table[i].key;
+			new_t[offset].stk = table[i].stk;
+		}
+
+		asm ("msr	ctpidr_el0, %0" :: "C" (new_t));
+		free(table);
+
+	} else {
+
+		size_t size;
+		char *stk;
+		struct Struct_Stack_Entry *entry;
+
+		size = 0x40000 * getpagesize();
+		stk = mmap(NULL,
+			   size,
+			   PROT_READ | PROT_WRITE,
+			   MAP_ANON | MAP_PRIVATE | MAP_STACK,
+			   -1, 0);
+		if (stk == MAP_FAILED)
+			rtld_die();
+		stk = cheri_clearperm(stk, CHERI_PERM_EXECUTIVE) + size;
+		struct {
+			uint8_t generation;
+			uintptr_t top;
+		} *metadata = (void *)stk;
+		metadata[-1].generation = 0;
+		metadata[-1].top = (uintptr_t)&metadata[-1];
+
+		cur->key = key;
+		cur->stk = stk;
+
+		entry = xmalloc(sizeof(*entry));
+		entry->stack = stk;
+
+		lockinfo.wlock_acquire(dst->stackslock);
+		SLIST_INSERT_HEAD(&dst->stacks, entry, link);
+		lockinfo.lock_release(dst->stackslock);
+	}
+}
+
+#else /* ! HASHTABLE_STACK_SWITCHING */
 
 /* Default stack size in libthr */
 #define SANDBOX_STACK_DEFAULT	(sizeof(void *) / 4 * 1024 * 1024)
@@ -259,6 +351,8 @@ get_rstk(uint32_t index, tramp_stk_table_t table, const void *target)
 	}
 }
 
+#endif
+
 static void (*thr_thread_start)(struct pthread *);
 
 void
@@ -269,7 +363,9 @@ _rtld_thread_start(struct pthread *curthread)
 	asm ("msr	rctpidr_el0, %0" :: "C" (tls));
 
 	tls = xcalloc(DEFAULT_STACK_TABLE_SIZE, sizeof(*tls));
+#ifndef HASHTABLE_STACK_SWITCHING
 	tls[0] = (uintptr_t)get_rstk;
+#endif
 	asm ("msr	ctpidr_el0, %0" :: "C" (tls));
 
 	thr_thread_start(curthread);
@@ -392,8 +488,13 @@ allocate_new_page:
 	    cheri_copyaddress(pg, (uintptr_t)t + len));
 
 	t->target = target;
+#ifdef HASHTABLE_STACK_SWITCHING
+	t->get_rstk_cap = get_rstk;
+	t->dst_obj = dst;
+#else
 	if (dst != NULL)
 		t->compart_id = dst->compart_id;
+#endif
 
 	t = cheri_clearperm(t, FUNC_PTR_REMOVE_PERMS);
 	return (cheri_sealentry(cheri_capmode(&t->code)));
@@ -1062,7 +1163,9 @@ allocate_initial_tls(Obj_Entry *objs)
 
 #if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
 	tramp_stk_table_t tls = xcalloc(DEFAULT_STACK_TABLE_SIZE, sizeof(*tls));
+#ifndef HASHTABLE_STACK_SWITCHING
 	tls[0] = (uintptr_t)get_rstk;
+#endif
 	asm ("msr	ctpidr_el0, %0\n" :: "C" (tls));
 #endif
 
