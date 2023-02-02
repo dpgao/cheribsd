@@ -114,7 +114,7 @@ SUBDIR=	${SUBDIR_BOOTSTRAP} \
 	ncurses
 
 .if ${MACHINE_ABI:Mpurecap} && ${MACHINE_CPUARCH} == "aarch64" && !defined(COMPAT_CHERI)
-SUBDIR+=	libc_c18n libthr_c18n
+SUBDIR+=	libc_c18n libthr_c18n libgcc_s_c18n
 .endif
 
 .if !${MACHINE_ABI:Mpurecap}

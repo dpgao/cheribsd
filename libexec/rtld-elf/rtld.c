@@ -4532,6 +4532,10 @@ dl_iterate_phdr(__dl_iterate_hdr_callback callback, void *param)
 	init_marker(&marker);
 	error = 0;
 
+#if defined(__CHERI_PURE_CAPABILITY__) && defined(RTLD_SANDBOX)
+	callback = tramp_pgs_append(callback, obj_from_addr(callback), NULL);
+#endif
+
 	wlock_acquire(rtld_phdr_lock, &phdr_lockstate);
 	wlock_acquire(rtld_bind_lock, &bind_lockstate);
 	for (obj = globallist_curr(TAILQ_FIRST(&obj_list)); obj != NULL;) {

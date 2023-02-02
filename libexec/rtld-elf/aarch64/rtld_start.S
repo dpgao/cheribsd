@@ -645,6 +645,20 @@ ENTRY(_rtld_longjmp)
 1:	ret
 END(_rtld_longjmp)
 
+ENTRY(_rtld_unw_getcontext)
+	/* Get the caller's Executive stack frame */
+	ldr	c1, [csp]
+	str	c1, [c0]
+	ret
+END(_rtld_unw_getcontext)
+
+ENTRY(_rtld_unw_setcontext)
+	/* Set the Executive stack frame to be entered */
+	ldr	c1, [c0]
+	str	c1, [csp]
+	ret
+END(_rtld_unw_setcontext)
+
 #define TRAMP(sym) \
 	.section .rodata; .globl sym; .p2align 4; .type sym,#object; sym:
 

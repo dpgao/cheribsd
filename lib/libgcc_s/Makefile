@@ -12,16 +12,20 @@ MK_UBSAN:=	no
 MK_SSP=		no
 WARNS?=	2
 
+.if !defined(LIBGCC_S_SRCTOP)
+LIBGCC_S_SRCTOP:=	${.PARSEDIR}
+.endif
+
 LDFLAGS+=	-nodefaultlibs
 LIBADD+=	c
 
-VERSION_DEF=	${.CURDIR}/Versions.def
-SYMBOL_MAPS=	${.CURDIR}/Symbol.map
+VERSION_DEF=	${LIBGCC_S_SRCTOP}/Versions.def
+SYMBOL_MAPS=	${LIBGCC_S_SRCTOP}/Symbol.map
 # Export ARM AEABI unwind routines needed by libc and libthr.
-.if exists(${.CURDIR}/${MACHINE_CPUARCH}/Symbol.map)
-SYMBOL_MAPS+=	${.CURDIR}/${MACHINE_CPUARCH}/Symbol.map
+.if exists(${LIBGCC_S_SRCTOP}/${MACHINE_CPUARCH}/Symbol.map)
+SYMBOL_MAPS+=	${LIBGCC_S_SRCTOP}/${MACHINE_CPUARCH}/Symbol.map
 .else
-SYMBOL_MAPS+=	${.CURDIR}/SymbolDefault.map
+SYMBOL_MAPS+=	${LIBGCC_S_SRCTOP}/SymbolDefault.map
 .endif
 
 .include "../libcompiler_rt/Makefile.inc"
@@ -53,6 +57,11 @@ SRCS+=		s_scalbnf.c
 SRCS+=		s_fmaxl.c
 SRCS+=		s_logbl.c
 SRCS+=		s_scalbnl.c
+.endif
+
+.ifdef RTLD_SANDBOX
+CFLAGS+=	-DRTLD_SANDBOX
+SYMBOL_MAPS+=	${LIBGCC_S_SRCTOP}/Symbol-c18n.map
 .endif
 
 .include <bsd.lib.mk>
