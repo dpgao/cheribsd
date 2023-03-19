@@ -1987,8 +1987,10 @@ inline bool Registers_arm64::validCapabilityRegister(int regNum) const {
     return true;
   if ((regNum >= UNW_ARM64_C0) && (regNum <= UNW_ARM64_C31))
     return true;
+#ifdef RTLD_SANDBOX
   if (regNum == UNW_ARM64_CCSP)
     return true;
+#endif
   return false;
 }
 

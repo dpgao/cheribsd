@@ -21,10 +21,6 @@
 #include "DwarfParser.hpp"
 #include "config.h"
 
-#ifdef __CHERI_PURE_CAPABILITY__
-#include <cheri/cheric.h>
-#endif
-
 namespace libunwind {
 
 
@@ -373,7 +369,7 @@ int DwarfInstructions<A, R>::stepWithDwarf(A &addressSpace, pc_t pc,
       // pointing to a trampoline. The only exception is when the current PCC is
       // also running in Executive mode, that is, when it is already running an
       // RTLD function. We ignore this case for now.
-      if ((cheri_getperm(returnAddress) & CHERI_PERM_EXECUTIVE) != 0) {
+      if ((__builtin_cheri_perms_get(returnAddress) & CHERI_PERM_EXECUTIVE) != 0) {
         uintcap_t ccsp = registers.getCapabilityRegister(UNW_ARM64_CCSP);
         newRegisters.setRegister(
             UNW_ARM64_CCSP, addressSpace.getCapability(ccsp));
