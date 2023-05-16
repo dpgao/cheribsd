@@ -2160,6 +2160,10 @@ int UnwindCursor<A, R>::step() {
   if (result == UNW_STEP_SUCCESS) {
     this->setInfoBasedOnIPRegister(true);
     if (_unwindInfoMissing) {
+      if (__builtin_cheri_perms_get(this->getIP().get()) & 0x1) {
+        _LIBUNWIND_TRACE_UNWINDING("%s: result = %d", __func__, result);
+        return result;
+      }
       _LIBUNWIND_TRACE_UNWINDING("%s: step returned UNW_STEP_SUCCESS but "
                                  "_unwindInfoMissing -> UNW_STEP_END", __func__);
       return UNW_STEP_END;
